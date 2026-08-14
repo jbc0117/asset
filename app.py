@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# root 디렉토리 및 templates 디렉토리 모두 인식되도록 설정
 app = Flask(__name__, template_folder='.')
 CORS(app)
 
@@ -21,7 +20,6 @@ ACCESS_TOKEN = ""
 
 stock_cache = {}
 
-# 6자리 순수 종목코드 매핑 추가
 KNOWN_STOCK_NAMES_MAP = {
     "코스피": "^KS11", "코스피 지수": "^KS11", "kospi": "^KS11",
     "코스닥": "^KQ11", "kosdaq": "^KQ11",
@@ -41,7 +39,6 @@ KNOWN_STOCK_NAMES_MAP = {
     "KRW=X": "원/달러 환율",
     "KRX_GOLD_1G": "KRX 금 1g (실물)",
     
-    # 6자리 숫자 및 .KS 형태 둘 다 한글명 매핑
     "005930": "삼성전자", "005930.KS": "삼성전자",
     "000660": "SK하이닉스", "000660.KS": "SK하이닉스",
     "373220": "LG에너지솔루션", "373220.KS": "LG에너지솔루션",
@@ -85,11 +82,11 @@ def get_access_token():
 
 def fetch_from_kis_api(ticker_code):
     token = get_access_token()
-    clean_code = ticker_code.split('.')[0].strip().zfill(6)
-    default_name = KNOWN_STOCK_NAMES_MAP.get(clean_code, KNOWN_STOCK_NAMES_MAP.get(ticker_code, ticker_code))
-
     if not token:
         return None
+
+    clean_code = ticker_code.split('.')[0].strip().zfill(6)
+    default_name = KNOWN_STOCK_NAMES_MAP.get(clean_code, KNOWN_STOCK_NAMES_MAP.get(ticker_code, ticker_code))
 
     url = f"{URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-price"
     headers = {
@@ -131,6 +128,57 @@ def fetch_from_kis_api(ticker_code):
                     }
     except Exception as e:
         print(f"[{ticker_code}] KIS API 조회 실패: {e}")
+
+    return None
+
+def fetch_from_kis_index_api(ticker_code):
+    """한국투자증권 API를 이용해 코스피(^KS11), 코스닥(^KQ11) 지수를 조회"""
+    token = get_access_token()
+    if not token:
+        return None
+
+    # 코스피는 업종코드 0001, 코스닥은 1001 사용
+    market_code = "0001" if ticker_code == "^KS11" else "1001"
+    default_name = "코스피" if ticker_code == "^KS11" else "코스닥"
+
+    url = f"{URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-index-price"
+    headers = {
+        "content-type": "application/json; charset=utf-8",
+        "authorization": f"Bearer {token}",
+        "appkey": APP_KEY,
+        "appsecret": APP_SECRET,
+        "tr_id": "FHPUP02100000",
+        "custtype": "P"
+    }
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "U",
+        "FID_INPUT_ISCD": market_code
+    }
+
+    try:
+        res = requests.get(url, headers=headers, params=params, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("rt_cd") == "0":
+                output = data.get("output", {})
+                if output:
+                    price = float(output.get("bstp_nmix_prpr", 0))
+                    change = float(output.get("bstp_nmix_prdy_vrss", 0))
+                    change_rate = float(output.get("bstp_nmix_prdy_ctrt", 0))
+                    
+                    sign = output.get("prdy_vrss_sign", "3")
+                    if sign in ["4", "5"]:
+                        change = -abs(change)
+
+                    return {
+                        "code": ticker_code,
+                        "name": default_name,
+                        "price": round(price, 2),
+                        "change": round(change, 2),
+                        "change_percent": round(change_rate, 2)
+                    }
+    except Exception as e:
+        print(f"[{ticker_code}] KIS 업종 지수 조회 실패: {e}")
 
     return None
 
@@ -178,16 +226,22 @@ def fetch_from_yahoo_chart_api(ticker_code):
     headers = {'User-Agent': 'Mozilla/5.0'}
 
     try:
-        res = requests.get(url, headers=headers, timeout=2.5)
+        res = requests.get(url, headers=headers, timeout=3.0)
         if res.status_code == 200:
             data = res.json()
             result = data.get('chart', {}).get('result', [])
             if result:
+                meta = result[0].get('meta', {})
+                current_price = meta.get('regularMarketPrice')
+                
                 quote = result[0].get('indicators', {}).get('quote', [{}])[0]
                 closes = [c for c in quote.get('close', []) if c is not None]
-                if closes:
-                    current_price = float(closes[-1])
-                    prev_price = float(closes[-2]) if len(closes) > 1 else current_price
+                
+                if current_price is None and closes:
+                    current_price = closes[-1]
+                
+                if current_price is not None and closes:
+                    prev_price = closes[-2] if len(closes) > 1 else current_price
                     change = current_price - prev_price
                     change_percent = (change / prev_price * 100) if prev_price != 0 else 0.0
 
@@ -222,11 +276,18 @@ def get_stock_data(tickers):
 
     for ticker in tickers_to_fetch:
         stock_info = None
-        clean_code = ticker.split('.')[0].strip()
+        
+        # 1. 코스피, 코스닥 지수인 경우 KIS 업종 API로 우선 조회
+        if ticker in ["^KS11", "^KQ11"]:
+            stock_info = fetch_from_kis_index_api(ticker)
 
-        if len(clean_code) == 6 and clean_code.isdigit():
-            stock_info = fetch_from_kis_api(clean_code)
+        # 2. 일반 6자리 주식 코드인 경우 KIS 주식 API로 조회
+        if not stock_info or stock_info['price'] == 0:
+            clean_code = ticker.split('.')[0].strip()
+            if len(clean_code) == 6 and clean_code.isdigit():
+                stock_info = fetch_from_kis_api(clean_code)
 
+        # 3. 그 외(환율, 해외주식, 금 등)는 야후 파이낸스 API로 조회
         if not stock_info or stock_info['price'] == 0:
             stock_info = fetch_from_yahoo_chart_api(ticker)
 
