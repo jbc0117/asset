@@ -192,29 +192,30 @@
             // --- 데이터 관리 ---
             let appData = {};
 
+            // KIS API 호환을 위해 6자리 종목코드 사용 (.KS 제거)
             const defaultData = {
                 family_portfolio: {
                     "장병찬": {
                         "DC": [
-                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
-                            {"name": "솔미채", "code": "490490.KS", "quantity": 0, "dividend": 0}
+                            {"name": "타미당", "code": "458730", "quantity": 0, "dividend": 0},
+                            {"name": "솔미채", "code": "490490", "quantity": 0, "dividend": 0}
                         ],
                         "ISA": [
-                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0},
-                            {"name": "코차휴", "code": "0048K0.KS", "quantity": 0, "dividend": 0}
+                            {"name": "코나백", "code": "379810", "quantity": 0, "dividend": 0},
+                            {"name": "코차휴", "code": "0048K0", "quantity": 0, "dividend": 0}
                         ],
                         "연금_회사": [
-                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
-                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0}
+                            {"name": "타미당", "code": "458730", "quantity": 0, "dividend": 0},
+                            {"name": "코나백", "code": "379810", "quantity": 0, "dividend": 0}
                         ],
                         "연금_개인": [
-                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
-                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0}
+                            {"name": "타미당", "code": "458730", "quantity": 0, "dividend": 0},
+                            {"name": "코나백", "code": "379810", "quantity": 0, "dividend": 0}
                         ],
                         "IRP": [
-                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
-                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0},
-                            {"name": "솔미채", "code": "490490.KS", "quantity": 0, "dividend": 0}
+                            {"name": "타미당", "code": "458730", "quantity": 0, "dividend": 0},
+                            {"name": "코나백", "code": "379810", "quantity": 0, "dividend": 0},
+                            {"name": "솔미채", "code": "490490", "quantity": 0, "dividend": 0}
                         ],
                         "금&코인": [
                             {"name": "KRX 금현물", "code": "KRX_GOLD_1G", "quantity": 0, "dividend": 0},
@@ -222,22 +223,21 @@
                         ]
                     },
                     "한양자": {
-                        "국내주식": [{"name": "현대차", "code": "005380.KS", "quantity": 80, "dividend": 11000}]
+                        "국내주식": [{"name": "현대차", "code": "005380", "quantity": 80, "dividend": 11000}]
                     },
                     "장가연": {
-                        "국내주식": [{"name": "NAVER", "code": "035420.KS", "quantity": 30, "dividend": 774}]
+                        "국내주식": [{"name": "NAVER", "code": "035420", "quantity": 30, "dividend": 774}]
                     },
                     "장세훈": {
                         "해외주식": [{"name": "Microsoft", "code": "MSFT", "quantity": 40, "dividend": 2720}]
                     }
                 },
-                watchlist: ["005930.KS", "AAPL", "MSFT", "035420.KS"],
+                watchlist: ["005930", "AAPL", "MSFT", "035420"],
                 investment_status: [
                     { "date": "2026-06-30", "assets": 120000000, "rate": 5.5, "pnl": 6600000 }
                 ]
             };
 
-            // 장병찬 목표 비율 데이터
             const targetRatios = {
                 "타미당": 35,
                 "코나백": 25,
@@ -247,17 +247,25 @@
                 "비트코인": 15
             };
 
+            function cleanCode(code) {
+                return code ? code.split('.')[0] : code;
+            }
+
             function loadData() {
                 const savedData = localStorage.getItem('assetData');
                 try {
                     if (!savedData) throw new Error("No saved data");
                     appData = JSON.parse(savedData);
                     
+                    // 기존에 저장된 `.KS` 접미사 자동 클리닝
+                    if (appData.watchlist) {
+                        appData.watchlist = appData.watchlist.map(c => cleanCode(c));
+                    }
                     const jangPortfolio = appData.family_portfolio?.["장병찬"];
                     if (jangPortfolio) {
                         Object.keys(jangPortfolio).forEach(accKey => {
                             jangPortfolio[accKey].forEach(stock => {
-                                // 기존 ETF 프록시 코드가 있으면 실제 KRX 금 1g 전용 코드로 자동 업데이트
+                                stock.code = cleanCode(stock.code);
                                 if (stock.name === "KRX 금현물" && stock.code !== "KRX_GOLD_1G") {
                                     stock.code = "KRX_GOLD_1G";
                                 }
@@ -276,12 +284,11 @@
                 localStorage.setItem('assetData', JSON.stringify(appData));
             }
 
-            // 특정 인물의 특정 종목 총 수량 계산 유틸리티
             function getStockQuantity(memberName, stockName) {
                 const memberObj = appData.family_portfolio?.[memberName] || {};
                 let total = 0;
                 Object.values(memberObj).flat().forEach(s => {
-                    if (s.name === stockName || s.code === '458730.KS') {
+                    if (s.name === stockName || cleanCode(s.code) === '458730') {
                         total += (s.quantity || 0);
                     }
                 });
@@ -290,7 +297,6 @@
 
             // --- 유틸리티 함수 ---
             const formatCurrency = (value) => `₩ ${Math.round(value).toLocaleString('ko-KR')}`;
-            // 수량 포맷팅 (소수점 최대 8자리 지원)
             const formatNumber = (value) => {
                 if (value === undefined || value === null || isNaN(value)) return '0';
                 return Number(value).toLocaleString('ko-KR', { maximumFractionDigits: 8 });
@@ -301,7 +307,8 @@
             let stockDataCache = {};
 
             async function fetchStockData(codes, forceRefresh = false) {
-                const uniqueCodes = [...new Set(codes)];
+                const cleanedCodes = codes.map(c => cleanCode(c));
+                const uniqueCodes = [...new Set(cleanedCodes)];
                 if (uniqueCodes.length === 0) return {};
 
                 try {
@@ -326,14 +333,13 @@
             // 1. 홈 화면
             async function renderHome() {
                 const jangPortfolio = appData.family_portfolio?.["장병찬"] || {};
-                const allMyStockCodes = Object.values(jangPortfolio).flat().map(s => s.code);
+                const allMyStockCodes = Object.values(jangPortfolio).flat().map(s => cleanCode(s.code));
                 if (!allMyStockCodes.includes('KRX_GOLD_1G')) {
                     allMyStockCodes.push('KRX_GOLD_1G');
                 }
 
                 const prices = await fetchStockData(allMyStockCodes);
 
-                // 목표 순서
                 const targetOrder = ["타미당", "코나백", "솔미채", "코차휴", "KRX 금현물", "비트코인"];
                 const stockSummary = {};
 
@@ -342,10 +348,11 @@
                 });
 
                 Object.values(jangPortfolio).flat().forEach(stock => {
+                    const code = cleanCode(stock.code);
                     if (!stockSummary[stock.name]) {
-                        stockSummary[stock.name] = { name: stock.name, code: stock.code, quantity: 0, value: 0, targetRatio: targetRatios[stock.name] || 0 };
+                        stockSummary[stock.name] = { name: stock.name, code: code, quantity: 0, value: 0, targetRatio: targetRatios[stock.name] || 0 };
                     }
-                    stockSummary[stock.name].code = stock.code;
+                    stockSummary[stock.name].code = code;
                     stockSummary[stock.name].quantity += stock.quantity;
                 });
 
@@ -398,7 +405,6 @@
                         </div>
                     </div>`;
 
-                // 타미당 보유 현황 (목표 : 각 3만주) 카드
                 const targetPerPerson = 30000;
                 const jangTamidang = getStockQuantity("장병찬", "타미당");
                 const hanTamidang = getStockQuantity("한양자", "타미당");
@@ -445,9 +451,8 @@
                 contentEl.innerHTML = html;
             }
 
-            // 2. 관심종목 화면 (주요 지수에 KRX 금현물 포함)
+            // 2. 관심종목 화면
             async function renderWatchlist() {
-                // 주요 지수에 KRX 금현물(1g) 추가
                 const indexCodes = ['^KS11', '^KQ11', 'USDKRW=X', 'KRX_GOLD_1G'];
                 const allWatchlistCodes = [...indexCodes, ...appData.watchlist];
                 const prices = await fetchStockData(allWatchlistCodes, true);
@@ -506,7 +511,8 @@
                 if (appData.watchlist.length === 0) {
                     html += `<p style="text-align:center; color: #757575;">아래에서 관심 종목을 추가하세요.</p>`;
                 } else {
-                    appData.watchlist.forEach((code, index) => {
+                    appData.watchlist.forEach((rawCode, index) => {
+                        const code = cleanCode(rawCode);
                         const stock = prices[code] || { name: code, price: 0, change: 0, change_percent: 0 };
                         const changeClass = stock.change >= 0 ? 'positive' : 'negative';
                         const sign = stock.change >= 0 ? '+' : '';
@@ -517,24 +523,24 @@
                             const downButtonClass = index === appData.watchlist.length - 1 ? 'hidden' : '';
                             rightSideControls = `
                                 <div class="move-controls">
-                                    <button class="move-arrow-btn move-up ${upButtonClass}" data-code="${stock.code}"><i class="fas fa-arrow-up"></i></button>
-                                    <button class="move-arrow-btn move-down ${downButtonClass}" data-code="${stock.code}"><i class="fas fa-arrow-down"></i></button>
+                                    <button class="move-arrow-btn move-up ${upButtonClass}" data-code="${code}"><i class="fas fa-arrow-up"></i></button>
+                                    <button class="move-arrow-btn move-down ${downButtonClass}" data-code="${code}"><i class="fas fa-arrow-down"></i></button>
                                 </div>`;
                         } else if (watchlistMode === 'delete') {
-                            const isChecked = selectedForDeletion.has(stock.code) ? 'checked' : '';
-                            rightSideControls = `<input type="checkbox" class="delete-checkbox" data-code="${stock.code}" ${isChecked}>`;
+                            const isChecked = selectedForDeletion.has(code) ? 'checked' : '';
+                            rightSideControls = `<input type="checkbox" class="delete-checkbox" data-code="${code}" ${isChecked}>`;
                         }
 
                         html += `
-                            <div class="watchlist-item" data-code="${stock.code}"> 
+                            <div class="watchlist-item" data-code="${code}"> 
                                 <div class="stock-info">
                                     <div class="name">${stock.name || code}</div>
-                                    <div class="code">${stock.code}</div>
+                                    <div class="code">${code}</div>
                                 </div>
                                 <div class="stock-price">
                                     <div class="price">${formatCurrency(stock.price)}</div>
                                     <div class="change ${changeClass}">
-                                        ${sign}${formatCurrency(stock.change)} (${stock.change_percent.toFixed(2)}%)
+                                        ${sign}${formatCurrency(stock.change)} (${stock.change_percent ? stock.change_percent.toFixed(2) : '0.00'}%)
                                     </div>
                                 </div>
                                 ${rightSideControls}
@@ -552,7 +558,7 @@
                     <div class="content-card">
                         <h3>관심 종목 추가</h3> 
                         <div class="add-stock-form">
-                            <input type="text" id="stock-search-input" placeholder="종목명 또는 코드 검색 (예: 삼성전자, 금, AAPL)" autocomplete="off">
+                            <input type="text" id="stock-search-input" placeholder="종목명 또는 코드 검색 (예: 삼성전자, 005930)" autocomplete="off">
                             <div id="search-results" class="search-results-dropdown"></div>
                         </div>
                     </div>`;
@@ -580,21 +586,22 @@
                     tableHtml += `<tr><td colspan="${colspan}" style="text-align:center; color: #999;">보유 종목이 없습니다.</td></tr>`;
                 } else {
                     stocks.forEach(stock => {
-                        const stockData = prices[stock.code] || { price: 0 };
+                        const code = cleanCode(stock.code);
+                        const stockData = prices[code] || { price: 0 };
                         const unitPrice = stockData.price || 0;
                         const totalValue = unitPrice * stock.quantity;
                         
                         const quantityDisplay = (member === '장병찬' && accountName !== '전체 보기')
-                            ? `<input type="text" inputmode="decimal" class="quantity-input" value="${formatNumber(stock.quantity)}" data-member="${member}" data-account="${accountName}" data-code="${stock.code}" data-price="${unitPrice}">`
+                            ? `<input type="text" inputmode="decimal" class="quantity-input" value="${formatNumber(stock.quantity)}" data-member="${member}" data-account="${accountName}" data-code="${code}" data-price="${unitPrice}">`
                             : formatNumber(stock.quantity);
 
                         const actionCell = showActionCol
-                            ? `<td class="actions"><button class="action-btn delete" data-member="${member}" data-account="${accountName}" data-code="${stock.code}"><i class="fas fa-trash"></i></button></td>`
+                            ? `<td class="actions"><button class="action-btn delete" data-member="${member}" data-account="${accountName}" data-code="${code}"><i class="fas fa-trash"></i></button></td>`
                             : '';
 
                         tableHtml += `
                             <tr>
-                                <td>${stock.name}<br><small style="color: #757575;">${stock.code}</small></td>
+                                <td>${stock.name}<br><small style="color: #757575;">${code}</small></td>
                                 <td class="align-right">${quantityDisplay}</td>
                                 <td class="align-right">${formatCurrency(totalValue)}</td>
                                 ${actionCell}
@@ -615,7 +622,7 @@
                 const allPortfolioCodes = Object.values(appData.family_portfolio)
                     .map(memberPortfolio => Object.values(memberPortfolio).flat())
                     .flat()
-                    .map(stock => stock.code);
+                    .map(stock => cleanCode(stock.code));
 
                 if (!allPortfolioCodes.includes('KRX_GOLD_1G')) {
                     allPortfolioCodes.push('KRX_GOLD_1G');
@@ -641,17 +648,18 @@
 
                         const allStocksRaw = Object.values(memberAccounts).flat();
                         const aggregatedStocksObj = allStocksRaw.reduce((acc, stock) => {
-                            if (acc[stock.code]) {
-                                acc[stock.code].quantity += stock.quantity;
+                            const code = cleanCode(stock.code);
+                            if (acc[code]) {
+                                acc[code].quantity += stock.quantity;
                             } else {
-                                acc[stock.code] = { ...stock };
+                                acc[code] = { ...stock, code: code };
                             }
                             return acc;
                         }, {});
                         let allStocks = Object.values(aggregatedStocksObj);
 
                         if (member === '장병찬') {
-                            const desiredOrder = ["458730.KS", "379810.KS", "490490.KS", "0048K0.KS", "KRX_GOLD_1G", "BTC-KRW"];
+                            const desiredOrder = ["458730", "379810", "490490", "0048K0", "KRX_GOLD_1G", "BTC-KRW"];
                             allStocks.sort((a, b) => desiredOrder.indexOf(a.code) - desiredOrder.indexOf(b.code));
                         }
 
@@ -752,7 +760,6 @@
                 });
             });
 
-            // 수량 입력 칸 포커스 시 전체 선택
             contentEl.addEventListener('focusin', (e) => {
                 if (e.target.classList.contains('quantity-input')) {
                     setTimeout(() => e.target.select(), 0);
@@ -785,6 +792,7 @@
                                 const item = document.createElement('div');
                                 item.className = 'search-result-item';
                                 item.dataset.code = stock.code;
+                                item.dataset.name = stock.name;
                                 item.innerHTML = `<div><div class="name">${stock.name || stock.code}</div><div class="code">${stock.code}</div></div><div class="price">${formatCurrency(stock.price)}</div>`;
                                 searchResultsDiv.appendChild(item);
                             });
@@ -795,7 +803,6 @@
                     }, 300);
                 }
 
-                // 수량 입력 시 실시간 포맷팅 (소수점 8자리 지원)
                 if (e.target.classList.contains('quantity-input')) {
                     const input = e.target;
                     let value = input.value.replace(/,/g, '');
@@ -806,7 +813,7 @@
                     if (value.includes('.')) {
                         const parts = value.split('.');
                         const integerPart = Number(parts[0]).toLocaleString('ko-KR');
-                        const decimalPart = parts[1].slice(0, 8); // 소수점 최대 8자리 유지
+                        const decimalPart = parts[1].slice(0, 8);
                         input.value = `${integerPart}.${decimalPart}`;
                     } else {
                         input.value = Number(value).toLocaleString('ko-KR');
@@ -818,9 +825,10 @@
                 if (e.target.classList.contains('quantity-input')) { 
                     const input = e.target;
                     const { member, account, code } = input.dataset;
+                    const cleanC = cleanCode(code);
                     const newQuantity = parseFloat(input.value.replace(/,/g, ''));
 
-                    const stock = appData.family_portfolio[member][account].find(s => s.code === code);
+                    const stock = appData.family_portfolio[member][account].find(s => cleanCode(s.code) === cleanC);
 
                     if (isNaN(newQuantity) || newQuantity < 0) {
                         input.value = stock ? formatNumber(stock.quantity) : '0';
@@ -840,7 +848,7 @@
                 }
 
                 if (e.target.classList.contains('delete-checkbox')) {
-                    const code = e.target.dataset.code;
+                    const code = cleanCode(e.target.dataset.code);
                     if (e.target.checked) selectedForDeletion.add(code);
                     else selectedForDeletion.delete(code);
                 }
@@ -897,8 +905,8 @@
                 const addStockBtn = e.target.closest('.add-stock-btn');
                 if (addStockBtn) {
                     const { member, account } = addStockBtn.dataset;
-                    const code = prompt('추가할 종목의 코드를 입력하세요 (예: 005930.KS, KRX_GOLD_1G):');
-                    if (!code || code.trim() === '') return;
+                    const inputCode = prompt('추가할 종목의 6자리 코드를 입력하세요 (예: 005930, KRX_GOLD_1G):');
+                    if (!inputCode || inputCode.trim() === '') return;
 
                     const quantity = parseFloat(prompt('보유 수량을 입력하세요:', '1'));
                     if (isNaN(quantity) || quantity <= 0) {
@@ -906,13 +914,13 @@
                         return;
                     }
 
-                    const stockCode = code.trim().toUpperCase();
+                    const stockCode = cleanCode(inputCode.trim());
                     const prices = await fetchStockData([stockCode]);
                     const stockData = prices[stockCode] || { name: stockCode, code: stockCode };
 
                     appData.family_portfolio[member][account].push({
-                        name: stockData.name,
-                        code: stockData.code,
+                        name: stockData.name || stockCode,
+                        code: stockCode,
                         quantity: quantity,
                         dividend: 0
                     });
@@ -922,7 +930,7 @@
 
                 const searchResultItem = e.target.closest('.search-result-item');
                 if (searchResultItem && searchResultItem.dataset.code) {
-                    const code = searchResultItem.dataset.code;
+                    const code = cleanCode(searchResultItem.dataset.code);
                     if (appData.watchlist.includes(code)) {
                         alert('이미 추가된 종목입니다.');
                     } else {
@@ -936,7 +944,7 @@
                 }
 
                 if (e.target.classList.contains('move-up') || e.target.closest('.move-up')) {
-                    const codeToMove = e.target.closest('.move-arrow-btn').dataset.code;
+                    const codeToMove = cleanCode(e.target.closest('.move-arrow-btn').dataset.code);
                     const index = appData.watchlist.indexOf(codeToMove);
                     if (index > 0) {
                         const newWatchlist = [...appData.watchlist];
@@ -948,7 +956,7 @@
                     return;
                 }
                 if (e.target.classList.contains('move-down') || e.target.closest('.move-down')) {
-                    const codeToMove = e.target.closest('.move-arrow-btn').dataset.code;
+                    const codeToMove = cleanCode(e.target.closest('.move-arrow-btn').dataset.code);
                     const index = appData.watchlist.indexOf(codeToMove);
                     if (index < appData.watchlist.length - 1) {
                         const newWatchlist = [...appData.watchlist];
@@ -967,7 +975,7 @@
                 if (e.target.id === 'confirm-delete-btn' || e.target.closest('#confirm-delete-btn')) {
                     if (selectedForDeletion.size > 0) {
                         if (confirm(`${selectedForDeletion.size}개의 종목을 삭제하시겠습니까?`)) {
-                            appData.watchlist = appData.watchlist.filter(code => !selectedForDeletion.has(code));
+                            appData.watchlist = appData.watchlist.filter(code => !selectedForDeletion.has(cleanCode(code)));
                             saveData();
                             selectedForDeletion.clear();
                             watchlistMode = 'normal';
@@ -980,9 +988,10 @@
                 const deleteBtn = e.target.closest('.action-btn.delete');
                 if (deleteBtn) {
                     const { member, account, code } = deleteBtn.dataset;
-                    if (confirm(`${member}님의 ${account} 계좌에서 ${code} 종목을 삭제하시겠습니까?`)) {
+                    const cleanC = cleanCode(code);
+                    if (confirm(`${member}님의 ${account} 계좌에서 ${cleanC} 종목을 삭제하시겠습니까?`)) {
                         const stocks = appData.family_portfolio[member][account];
-                        appData.family_portfolio[member][account] = stocks.filter(s => s.code !== code);
+                        appData.family_portfolio[member][account] = stocks.filter(s => cleanCode(s.code) !== cleanC);
                         saveData();
                         renderPortfolio();
                     }
@@ -996,7 +1005,7 @@
                 if (e.target.id === 'add-status-btn') {
                     let totalAssets = 0;
                     const myPortfolio = appData.family_portfolio["장병찬"] || {};
-                    const allMyStockCodes = Object.values(myPortfolio).flat().map(s => s.code);
+                    const allMyStockCodes = Object.values(myPortfolio).flat().map(s => cleanCode(s.code));
                     
                     if (!allMyStockCodes.includes('KRX_GOLD_1G')) {
                         allMyStockCodes.push('KRX_GOLD_1G');
@@ -1005,7 +1014,8 @@
                     const prices = await fetchStockData(allMyStockCodes);
 
                     totalAssets = Object.values(myPortfolio).flat().reduce((sum, stock) => {
-                        const price = prices[stock.code]?.price || 0;
+                        const code = cleanCode(stock.code);
+                        const price = prices[code]?.price || 0;
                         return sum + (price * stock.quantity);
                     }, 0);
 
