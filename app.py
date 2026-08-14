@@ -10,7 +10,7 @@ app = Flask(__name__, template_folder='.')
 
 # ---------------------------------------------------------------------------
 # [환경 변수 로드]
-# 하드코딩하지 않고 환경 변수에서 안전하게 읽어옵니다.
+# 하드코딩하지 않고 .env 환경 변수에서 안전하게 읽어옵니다.
 # ---------------------------------------------------------------------------
 APP_KEY = os.getenv("KIS_APPKEY", "")
 APP_SECRET = os.getenv("KIS_APPSECRET", "")
@@ -82,9 +82,10 @@ def get_kis_stock_price(code):
             
             # stck_prpr = 주식 현재가 (실시간 체결가)
             price = float(output.get("stck_prpr", 0))
-            change = float(output.get("prdy_vrss", 0))
-            change_rate = float(output.get("prdy_ctrt", 0))
+            change = float(output.get("prdy_vrss", 0))       # 전일 대비
+            change_rate = float(output.get("prdy_ctrt", 0))  # 전일 대비율 (%)
             
+            # 전일 대비 부호 처리 (4, 5는 하락)
             sign = output.get("prdy_vrss_sign", "3")
             if sign in ["4", "5"]:
                 change = -abs(change)
@@ -114,13 +115,19 @@ def index():
 
 @app.route('/api/stock-prices', methods=['POST'])
 def api_stock_prices():
+    """
+    프론트엔드에서 요청한 종목 코드 리스트의 시세를 조회해 반환합니다.
+    """
     req_data = request.get_json() or {}
     codes = req_data.get('codes', [])
+
     result = {}
 
     for raw_code in codes:
+        # 접미사 및 대문자 정리 (예: 005930.KS -> 005930)
         code = raw_code.split('.')[0].strip().upper()
 
+        # 6자리 숫자 종목 코드 (국내주식)
         if len(code) == 6 and code.isdigit():
             stock_info = get_kis_stock_price(code)
             if stock_info:
@@ -128,6 +135,7 @@ def api_stock_prices():
                 result[code] = stock_info
                 continue
 
+        # 기타 지수 및 해외주식 예시 처리
         if code == "^KS11":
             result[raw_code] = {"name": "코스피", "price": 2750.50, "change": 15.20, "change_percent": 0.55}
         elif code == "^KQ11":
@@ -150,6 +158,9 @@ def api_stock_prices():
 
 @app.route('/api/search-stocks', methods=['GET'])
 def search_stocks():
+    """
+    종목 검색 기능 API
+    """
     query = request.args.get('query', '').strip()
     if not query:
         return jsonify([])
