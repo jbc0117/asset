@@ -16,7 +16,7 @@ APP_SECRET = os.getenv("KIS_APPSECRET", "").strip()
 CANO = os.getenv("KIS_CANO", "").strip()
 ACNT_PRDT_CD = os.getenv("KIS_ACNT_PRDT_CD", "01").strip()
 
-# 한국투자증권 실전투자 Domain (포트 9443 필수)
+# 한국투자증권 실전투자 Domain
 URL_BASE = "https://openapi.koreainvestment.com:9443"
 
 ACCESS_TOKEN = ""
@@ -64,17 +64,16 @@ def get_kis_stock_price(code):
         print(f"[{code}] 토큰이 없어 시세 조회를 진행하지 못합니다.")
         return None
 
-    url = f"{URL_BASE}/uapi/domestic-stock/v1/quoting/inquire-price"
+    # 올바른 경로: /quotations/inquire-price
+    url = f"{URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-price"
     
-    # 한국투자증권 요구 규격 헤더
     headers = {
         "content-type": "application/json; charset=utf-8",
         "authorization": f"Bearer {token}",
         "appkey": APP_KEY,
         "appsecret": APP_SECRET,
         "tr_id": "FHKST01010100",
-        "custtype": "P",
-        "User-Agent": "Mozilla/5.0"
+        "custtype": "P"
     }
     
     params = {
