@@ -16,8 +16,8 @@ APP_SECRET = os.getenv("KIS_APPSECRET", "").strip()
 CANO = os.getenv("KIS_CANO", "").strip()
 ACNT_PRDT_CD = os.getenv("KIS_ACNT_PRDT_CD", "01").strip()
 
-# 한국투자증권 표준 실전 Domain (포트 9443 없이 접속)
-URL_BASE = "https://openapi.koreainvestment.com"
+# 한국투자증권 실전투자 Domain (포트 9443 필수)
+URL_BASE = "https://openapi.koreainvestment.com:9443"
 
 ACCESS_TOKEN = ""
 
@@ -30,7 +30,9 @@ def get_access_token():
         return ACCESS_TOKEN
 
     url = f"{URL_BASE}/oauth2/tokenP"
-    headers = {"content-type": "application/json; charset=utf-8"}
+    headers = {
+        "content-type": "application/json; charset=utf-8"
+    }
     body = {
         "grant_type": "client_credentials",
         "appkey": APP_KEY,
@@ -38,7 +40,7 @@ def get_access_token():
     }
 
     try:
-        res = requests.post(url, headers=headers, json=body, timeout=5)
+        res = requests.post(url, headers=headers, json=body, timeout=10)
         print("--- [토큰 발급 응답 상태코드] ---:", res.status_code)
         
         res_data = res.json()
@@ -64,12 +66,15 @@ def get_kis_stock_price(code):
 
     url = f"{URL_BASE}/uapi/domestic-stock/v1/quoting/inquire-price"
     
+    # 한국투자증권 요구 규격 헤더
     headers = {
         "content-type": "application/json; charset=utf-8",
         "authorization": f"Bearer {token}",
         "appkey": APP_KEY,
         "appsecret": APP_SECRET,
-        "tr_id": "FHKST01010100"
+        "tr_id": "FHKST01010100",
+        "custtype": "P",
+        "User-Agent": "Mozilla/5.0"
     }
     
     params = {
@@ -78,7 +83,7 @@ def get_kis_stock_price(code):
     }
 
     try:
-        res = requests.get(url, headers=headers, params=params, timeout=5)
+        res = requests.get(url, headers=headers, params=params, timeout=10)
         print(f"--- [{code} 시세 응답 상태코드] ---:", res.status_code)
         
         if res.status_code == 200:
