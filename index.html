@@ -2,184 +2,1051 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>주식 자산 관리</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>자산 관리</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    
     <style>
-        body {
-            background-color: #f8f9fa;
+        :root {
+            --primary-color: #764ba2;
+            --secondary-color: #667eea;
+            --positive-color: #d32f2f; /* 상승/강조: 빨강 */
+            --negative-color: #1976d2; /* 하락: 파랑 */
+            --text-primary: #212121;
+            --text-secondary: #757575;
+            --bg-light: #f0f2f5;
+            --bg-white: #ffffff;
+            --border-color: #e0e0e0;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: var(--bg-light);
+            height: 100%;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
             max-width: 480px;
             margin: 0 auto;
-            min-height: 100vh;
-            position: relative;
-            padding-bottom: 70px;
+            background-color: var(--bg-white);
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
         }
-        .main-container { padding: 20px; }
-        .card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
+
+        /* Main Content */
+        .content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
         }
-        .stock-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 0;
-            border-bottom: 1px solid #f1f3f5;
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 50px auto;
         }
-        .stock-item:last-child { border-bottom: none; }
-        .text-red { color: #dc3545 !important; }
-        .text-blue { color: #0d6efd !important; }
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100%;
-            max-width: 480px;
-            background: white;
-            border-top: 1px solid #dee2e6;
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Tab Menu */
+        .tab-menu {
             display: flex;
             justify-content: space-around;
-            padding: 10px 0;
-            z-index: 1000;
+            padding: 8px 0;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-white);
+            flex-shrink: 0;
         }
-        .nav-item {
+        .tab-item { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #9e9e9e; font-size: 0.8em; flex: 1; padding: 5px 0; }
+        .tab-item i { font-size: 1.4em; margin-bottom: 4px; }
+        .tab-item.active { color: var(--primary-color); }
+
+        /* Common Content Styles */
+        .content-card { background: var(--bg-white); border-radius: 12px; margin-bottom: 15px; padding: 15px; border: 1px solid var(--border-color); }
+        .content-card h3 { margin: 0 0 15px 0; font-size: 1.1em; color: var(--text-primary); }
+
+        /* Major Indices Styles (2x2 그리드로 구성) */
+        .indices-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .index-item {
+            background-color: var(--bg-light);
+            padding: 10px 5px;
+            border-radius: 8px;
             text-align: center;
-            color: #6c757d;
-            text-decoration: none;
-            font-size: 0.8rem;
         }
-        .nav-item.active { color: #6f42c1; }
-        .nav-item i {
-            display: block;
-            font-size: 1.2rem;
-            margin-bottom: 3px;
+        .index-name {
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 4px;
         }
+        .index-price {
+            font-size: 0.95em;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .index-change {
+            font-size: 0.75em;
+            margin-top: 2px;
+            font-weight: 500;
+        }
+        .index-change.positive { color: var(--positive-color); }
+        .index-change.negative { color: var(--negative-color); }
+
+        /* Watchlist Styles */
+        .watchlist-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border-color); }
+        .watchlist-item:last-child { border-bottom: none; }
+        .stock-info { flex-grow: 1; }
+        .stock-info .name { font-weight: 500; color: var(--text-primary); }
+        .stock-info .code { font-size: 0.8em; color: var(--text-secondary); }
+        .stock-price { text-align: right; min-width: 120px; }
+        .stock-price .price { font-weight: 500; font-size: 1.1em; }
+        .stock-price .change { font-size: 0.9em; }
+        .stock-price .positive { color: var(--positive-color); }
+        .stock-price .negative { color: var(--negative-color); }
+
+        .watchlist-controls { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+        .mode-button { background-color: var(--bg-light); color: var(--text-primary); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
+        .mode-button.active { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+
+        .move-controls { display: flex; gap: 5px; margin-left: 10px; }
+        .move-arrow-btn { background: none; border: 1px solid var(--border-color); border-radius: 4px; padding: 5px 8px; cursor: pointer; color: var(--text-secondary); font-size: 0.9em; }
+        .move-arrow-btn:hover { background-color: #f0f0f0; }
+        .move-arrow-btn.hidden { opacity: 0; pointer-events: none; }
+        .delete-checkbox { margin-left: 15px; width: 20px; height: 20px; cursor: pointer; }
+
+        .delete-actions, .move-actions { display: flex; gap: 10px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-color); }
+        .action-button { flex: 1; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: 500; }
+        .action-button.primary { background-color: var(--primary-color); color: white; }
+        .action-button.secondary { background-color: var(--bg-light); color: var(--text-primary); border: 1px solid var(--border-color); }
+
+        .add-stock-form { position: relative; margin-top: 15px; }
+        #stock-search-input { width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; font-size: 1em; }
+        .search-results-dropdown { position: absolute; background-color: var(--bg-white); border: 1px solid var(--border-color); border-radius: 8px; max-height: 200px; overflow-y: auto; width: 100%; z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.1); display: none; margin-top: 5px; }
+        .search-results-dropdown.show { display: block; }
+        .search-result-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .search-result-item:last-child { border-bottom: none; }
+        .search-result-item:hover { background-color: #f0f0f0; }
+
+        /* Portfolio Styles */
+        .portfolio-member { margin-bottom: 10px; }
+        .portfolio-member-header { background: #f5f5f5; padding: 10px 15px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .portfolio-content { display: none; padding: 10px; border: 1px solid #f5f5f5; border-top: none; border-radius: 0 0 8px 8px; }
+        .portfolio-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .portfolio-table th, .portfolio-table td { padding: 10px 6px; text-align: left; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+        .portfolio-table th { font-weight: 500; color: var(--text-secondary); }
+        .portfolio-table td { color: var(--text-primary); }
+        .portfolio-table .align-right { text-align: right; white-space: nowrap; }
+        .portfolio-table .actions { width: 40px; text-align: right; }
+        .portfolio-table .action-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); padding: 4px; font-size: 1.1em; }
+        .portfolio-table .quantity-input { width: 95px; text-align: right; border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-size: 0.9em; box-sizing: border-box; }
+        .portfolio-table .action-btn.delete { color: #e57373; }
+
+        .portfolio-account { margin-bottom: 8px; }
+        .account-header { background: #fafafa; padding: 8px 12px; border-radius: 6px; font-weight: normal; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 0.95em; }
+        .account-content { display: none; padding: 10px 5px 0 5px; }
+
+        .portfolio-actions { margin-top: 15px; display: flex; gap: 10px; }
+        .portfolio-actions button { flex: 1; padding: 8px; border: 1px solid var(--primary-color); background-color: transparent; color: var(--primary-color); border-radius: 6px; cursor: pointer; font-size: 0.9em; }
+
+        /* Table Container for Status & Home */
+        .status-table-container { overflow-x: auto; }
+        .status-table { width: 100%; border-collapse: collapse; font-size: 0.85em; min-width: 300px; }
+        .status-table th, .status-table td { padding: 10px 5px; text-align: center; border-bottom: 1px solid var(--border-color); }
+        .status-table th { background-color: #fafafa; }
+        .status-form-container button { width: 100%; padding: 12px; font-size: 1.1em; border: none; background-color: var(--primary-color); color: white; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
+    <div class="container">
+        <main class="content">
+            <div class="loading-spinner"></div>
+        </main>
 
-    <div class="main-container">
-        <!-- 주요 지수 섹션 -->
-        <div class="card p-3">
-            <h5 class="mb-3 fw-bold">주요 지수</h5>
-            <div class="row g-2" id="market-indices"></div>
-        </div>
-
-        <!-- 관심 종목 섹션 -->
-        <div class="card p-3">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="fw-bold mb-0">관심 종목</h5>
-                <div>
-                    <button class="btn btn-sm btn-outline-secondary" id="btn-edit"><i class="fa-solid fa-arrow-up-wide-short"></i> 이동</button>
-                    <button class="btn btn-sm btn-outline-secondary" id="btn-delete"><i class="fa-solid fa-trash"></i> 지우기</button>
-                </div>
-            </div>
-            <div id="watchlist-container"></div>
-        </div>
-    </div>
-
-    <!-- 하단 네비게이션바 -->
-    <div class="bottom-nav">
-        <a href="/" class="nav-item active"><i class="fa-solid fa-house"></i>홈</a>
-        <a href="#" class="nav-item"><i class="fa-solid fa-star"></i>관심종목</a>
-        <a href="#" class="nav-item"><i class="fa-solid fa-user-group"></i>가족 포트폴리오</a>
-        <a href="#" class="nav-item"><i class="fa-solid fa-chart-line"></i>투자현황</a>
+        <nav class="tab-menu">
+            <a href="#" class="tab-item active" data-tab="home"><i class="fas fa-home"></i><span>홈</span></a>
+            <a href="#" class="tab-item" data-tab="watchlist"><i class="fas fa-star"></i><span>관심종목</span></a>
+            <a href="#" class="tab-item" data-tab="portfolio"><i class="fas fa-users"></i><span>가족 포트폴리오</span></a>
+            <a href="#" class="tab-item" data-tab="status"><i class="fas fa-chart-line"></i><span>투자현황</span></a>
+        </nav>
     </div>
 
     <script>
-        let watchlistCodes = ["005930", "000660", "035420"];
-        let marketCodes = ["^KS11", "^KQ11", "KRW=X", "KRX_GOLD_1G"];
+        document.addEventListener('DOMContentLoaded', function() {
+            const contentEl = document.querySelector('.content');
+            const tabs = document.querySelectorAll('.tab-item');
 
-        async function fetchAllData() {
-            try {
-                // 1. 관심 종목 시세 조회
-                const resWatch = await fetch('/api/stock-prices', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ codes: watchlistCodes })
-                });
-                const watchData = await resWatch.json();
-                renderWatchlist(watchData);
+            // --- 데이터 관리 ---
+            let appData = {};
 
-                // 2. 주요 지수 시세 조회
-                const resMarket = await fetch('/api/stock-prices', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ codes: marketCodes })
-                });
-                const marketData = await resMarket.json();
-                renderMarketIndices(marketData);
+            const defaultData = {
+                family_portfolio: {
+                    "장병찬": {
+                        "DC": [
+                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
+                            {"name": "솔미채", "code": "490490.KS", "quantity": 0, "dividend": 0}
+                        ],
+                        "ISA": [
+                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0},
+                            {"name": "코차휴", "code": "0048K0.KS", "quantity": 0, "dividend": 0}
+                        ],
+                        "연금_회사": [
+                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
+                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0}
+                        ],
+                        "연금_개인": [
+                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
+                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0}
+                        ],
+                        "IRP": [
+                            {"name": "타미당", "code": "458730.KS", "quantity": 0, "dividend": 0},
+                            {"name": "코나백", "code": "379810.KS", "quantity": 0, "dividend": 0},
+                            {"name": "솔미채", "code": "490490.KS", "quantity": 0, "dividend": 0}
+                        ],
+                        "금&코인": [
+                            {"name": "KRX 금현물", "code": "KRX_GOLD_1G", "quantity": 0, "dividend": 0},
+                            {"name": "비트코인", "code": "BTC-KRW", "quantity": 0, "dividend": 0}
+                        ]
+                    },
+                    "한양자": {
+                        "국내주식": [{"name": "현대차", "code": "005380.KS", "quantity": 80, "dividend": 11000}]
+                    },
+                    "장가연": {
+                        "국내주식": [{"name": "NAVER", "code": "035420.KS", "quantity": 30, "dividend": 774}]
+                    },
+                    "장세훈": {
+                        "해외주식": [{"name": "Microsoft", "code": "MSFT", "quantity": 40, "dividend": 2720}]
+                    }
+                },
+                watchlist: ["005930.KS", "AAPL", "MSFT", "035420.KS"],
+                investment_status: [
+                    { "date": "2026-06-30", "assets": 120000000, "rate": 5.5, "pnl": 6600000 }
+                ]
+            };
 
-            } catch (error) {
-                console.error("데이터 조회 실패:", error);
+            // 장병찬 목표 비율 데이터
+            const targetRatios = {
+                "타미당": 35,
+                "코나백": 25,
+                "솔미채": 10,
+                "코차휴": 10,
+                "KRX 금현물": 5,
+                "비트코인": 15
+            };
+
+            function loadData() {
+                const savedData = localStorage.getItem('assetData');
+                try {
+                    if (!savedData) throw new Error("No saved data");
+                    appData = JSON.parse(savedData);
+                    
+                    const jangPortfolio = appData.family_portfolio?.["장병찬"];
+                    if (jangPortfolio) {
+                        Object.keys(jangPortfolio).forEach(accKey => {
+                            jangPortfolio[accKey].forEach(stock => {
+                                // 기존 ETF 프록시 코드가 있으면 실제 KRX 금 1g 전용 코드로 자동 업데이트
+                                if (stock.name === "KRX 금현물" && stock.code !== "KRX_GOLD_1G") {
+                                    stock.code = "KRX_GOLD_1G";
+                                }
+                            });
+                        });
+                        saveData();
+                    }
+                } catch (e) {
+                    console.error("Failed to load valid data, resetting to default.", e.message);
+                    appData = JSON.parse(JSON.stringify(defaultData));
+                    localStorage.removeItem('assetData');
+                }
             }
-        }
 
-        function renderMarketIndices(stockData) {
-            const container = document.getElementById('market-indices');
-            container.innerHTML = '';
+            function saveData() {
+                localStorage.setItem('assetData', JSON.stringify(appData));
+            }
 
-            marketCodes.forEach(code => {
-                const stock = stockData[code];
-                if (!stock) return;
+            // 특정 인물의 특정 종목 총 수량 계산 유틸리티
+            function getStockQuantity(memberName, stockName) {
+                const memberObj = appData.family_portfolio?.[memberName] || {};
+                let total = 0;
+                Object.values(memberObj).flat().forEach(s => {
+                    if (s.name === stockName || s.code === '458730.KS') {
+                        total += (s.quantity || 0);
+                    }
+                });
+                return total;
+            }
 
-                const isPlus = stock.change >= 0;
-                const changeColor = isPlus ? 'text-red' : 'text-blue';
-                const signSymbol = isPlus ? '+' : '';
+            // --- 유틸리티 함수 ---
+            const formatCurrency = (value) => `₩ ${Math.round(value).toLocaleString('ko-KR')}`;
+            // 수량 포맷팅 (소수점 최대 8자리 지원)
+            const formatNumber = (value) => {
+                if (value === undefined || value === null || isNaN(value)) return '0';
+                return Number(value).toLocaleString('ko-KR', { maximumFractionDigits: 8 });
+            };
+            const showLoading = () => contentEl.innerHTML = '<div class="loading-spinner"></div>';
+            
+            // --- 서버 통신 ---
+            let stockDataCache = {};
 
-                let priceStr = stock.price.toLocaleString();
-                if (code === "KRW=X") priceStr += "원";
-                else if (code === "KRX_GOLD_1G") priceStr += "원";
+            async function fetchStockData(codes, forceRefresh = false) {
+                const uniqueCodes = [...new Set(codes)];
+                if (uniqueCodes.length === 0) return {};
 
-                const html = `
-                    <div class="col-6">
-                        <div class="p-2 border rounded bg-light text-center">
-                            <div class="text-muted small">${stock.name}</div>
-                            <div class="fw-bold">${priceStr}</div>
-                            <div class="${changeColor} small">${signSymbol}${stock.change.toLocaleString()} (${signSymbol}${stock.change_percent.toFixed(2)}%)</div>
-                        </div>
+                try {
+                    const response = await fetch('/api/stock-prices', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ codes: uniqueCodes, force_refresh: forceRefresh })
+                    });
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    
+                    const data = await response.json();
+                    stockDataCache = { ...stockDataCache, ...data };
+                    return stockDataCache;
+                } catch (error) {
+                    console.error("Failed to fetch stock data:", error);
+                    return stockDataCache;
+                }
+            }
+
+            // --- 렌더링 함수 ---
+
+            // 1. 홈 화면
+            async function renderHome() {
+                const jangPortfolio = appData.family_portfolio?.["장병찬"] || {};
+                const allMyStockCodes = Object.values(jangPortfolio).flat().map(s => s.code);
+                if (!allMyStockCodes.includes('KRX_GOLD_1G')) {
+                    allMyStockCodes.push('KRX_GOLD_1G');
+                }
+
+                const prices = await fetchStockData(allMyStockCodes);
+
+                // 목표 순서
+                const targetOrder = ["타미당", "코나백", "솔미채", "코차휴", "KRX 금현물", "비트코인"];
+                const stockSummary = {};
+
+                targetOrder.forEach(name => {
+                    stockSummary[name] = { name, code: '', quantity: 0, value: 0, targetRatio: targetRatios[name] || 0 };
+                });
+
+                Object.values(jangPortfolio).flat().forEach(stock => {
+                    if (!stockSummary[stock.name]) {
+                        stockSummary[stock.name] = { name: stock.name, code: stock.code, quantity: 0, value: 0, targetRatio: targetRatios[stock.name] || 0 };
+                    }
+                    stockSummary[stock.name].code = stock.code;
+                    stockSummary[stock.name].quantity += stock.quantity;
+                });
+
+                let totalPortfolioValue = 0;
+
+                Object.values(stockSummary).forEach(item => {
+                    const unitPrice = prices[item.code]?.price || 0;
+                    item.value = unitPrice * item.quantity;
+                    totalPortfolioValue += item.value;
+                });
+
+                let html = `
+                    <div style="text-align: center; margin-bottom: 15px; padding: 10px 0 5px 0;">
+                        <h2 style="margin: 0; font-size: 1.25em; color: var(--primary-color); font-weight: 700;">
+                            <i class="fas fa-chart-pie" style="margin-right: 6px;"></i>우리 가족 자산 대시보드
+                        </h2>
+                        <p style="margin: 4px 0 0 0; font-size: 0.8em; color: var(--text-secondary);">가족 자산 현황과 투자 목표를 한눈에 관리하세요</p>
                     </div>
-                `;
-                container.innerHTML += html;
-            });
-        }
+                    <div class="content-card">
+                        <div class="status-table-container">
+                            <table class="status-table">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left;">종목명</th>
+                                        <th style="text-align: right;">보유수량</th>
+                                        <th style="text-align: right;">현재 비율</th>
+                                        <th style="text-align: right;">목표 비율</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
 
-        function renderWatchlist(stockData) {
-            const container = document.getElementById('watchlist-container');
-            container.innerHTML = '';
+                const sortedList = Object.values(stockSummary).sort((a, b) => {
+                    return targetOrder.indexOf(a.name) - targetOrder.indexOf(b.name);
+                });
 
-            watchlistCodes.forEach(code => {
-                const stock = stockData[code];
-                if (!stock) return;
+                sortedList.forEach(item => {
+                    const currentRatio = totalPortfolioValue > 0 ? (item.value / totalPortfolioValue) * 100 : 0;
+                    html += `
+                        <tr>
+                            <td style="text-align: left; font-weight: 500;">${item.name}</td>
+                            <td style="text-align: right;">${formatNumber(item.quantity)}</td>
+                            <td style="text-align: right; font-weight: 700; color: var(--primary-color);">${currentRatio.toFixed(1)}%</td>
+                            <td style="text-align: right; color: var(--text-secondary);">${item.targetRatio}%</td>
+                        </tr>`;
+                });
 
-                const isPlus = stock.change >= 0;
-                const changeColor = isPlus ? 'text-red' : 'text-blue';
-                const signSymbol = isPlus ? '+' : '';
-
-                const html = `
-                    <div class="stock-item">
-                        <div>
-                            <div class="fw-bold fs-5">${stock.name}</div>
-                            <div class="text-muted small">${stock.code}</div>
+                html += `
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="text-end">
-                            <div class="fw-bold fs-5">₩ ${stock.price.toLocaleString()}</div>
-                            <div class="${changeColor} small">
-                                ${signSymbol}₩ ${stock.change.toLocaleString()} (${signSymbol}${stock.change_percent.toFixed(2)}%)
+                    </div>`;
+
+                // 타미당 보유 현황 (목표 : 각 3만주) 카드
+                const targetPerPerson = 30000;
+                const jangTamidang = getStockQuantity("장병찬", "타미당");
+                const hanTamidang = getStockQuantity("한양자", "타미당");
+                
+                const jangRemaining = targetPerPerson - jangTamidang;
+                const hanRemaining = targetPerPerson - hanTamidang;
+
+                const totalTamidang = jangTamidang + hanTamidang;
+                const totalRemaining = jangRemaining + hanRemaining;
+
+                html += `
+                    <div class="content-card">
+                        <h3>타미당 보유 현황 (목표 : 각 3만주)</h3>
+                        <div class="status-table-container">
+                            <table class="status-table">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left;">구분</th>
+                                        <th style="text-align: right;">보유 수량</th>
+                                        <th style="text-align: right;">남은 수량</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td style="text-align: left;">장병찬</td>
+                                        <td style="text-align: right;">${formatNumber(jangTamidang)}주</td>
+                                        <td style="text-align: right; color: var(--positive-color); font-weight: 500;">${formatNumber(jangRemaining)}주</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="text-align: left;">한양자</td>
+                                        <td style="text-align: right;">${formatNumber(hanTamidang)}주</td>
+                                        <td style="text-align: right; color: var(--positive-color); font-weight: 500;">${formatNumber(hanRemaining)}주</td>
+                                    </tr>
+                                    <tr style="font-weight: 700; background-color: #fafafa;">
+                                        <td style="text-align: left;">합계</td>
+                                        <td style="text-align: right; color: var(--primary-color);">${formatNumber(totalTamidang)}주</td>
+                                        <td style="text-align: right; color: var(--positive-color);">${formatNumber(totalRemaining)}주</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>`;
+
+                contentEl.innerHTML = html;
+            }
+
+            // 2. 관심종목 화면 (주요 지수에 KRX 금현물 포함)
+            async function renderWatchlist() {
+                // 주요 지수에 KRX 금현물(1g) 추가
+                const indexCodes = ['^KS11', '^KQ11', 'USDKRW=X', 'KRX_GOLD_1G'];
+                const allWatchlistCodes = [...indexCodes, ...appData.watchlist];
+                const prices = await fetchStockData(allWatchlistCodes, true);
+
+                const indexConfig = [
+                    { code: '^KS11', label: '코스피' },
+                    { code: '^KQ11', label: '코스닥' },
+                    { code: 'USDKRW=X', label: '환율(USD)' },
+                    { code: 'KRX_GOLD_1G', label: 'KRX 금(1g)' }
+                ];
+
+                let html = `
+                    <div class="content-card">
+                        <h3>주요 지수</h3>
+                        <div class="indices-grid">`;
+
+                indexConfig.forEach(item => {
+                    const data = prices[item.code] || { price: 0, change: 0, change_percent: 0 };
+                    const changeClass = data.change >= 0 ? 'positive' : 'negative';
+                    const sign = data.change >= 0 ? '+' : '';
+                    
+                    let priceFormatted = '-';
+                    if (data.price) {
+                        if (item.code === 'USDKRW=X') {
+                            priceFormatted = `${data.price.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}원`;
+                        } else if (item.code === 'KRX_GOLD_1G') {
+                            priceFormatted = `${Math.round(data.price).toLocaleString('ko-KR')}원`;
+                        } else {
+                            priceFormatted = data.price.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        }
+                    }
+
+                    html += `
+                        <div class="index-item">
+                            <div class="index-name">${item.label}</div>
+                            <div class="index-price">${priceFormatted}</div>
+                            <div class="index-change ${changeClass}">
+                                ${sign}${data.change ? data.change.toFixed(2) : '0.00'} (${sign}${data.change_percent ? data.change_percent.toFixed(2) : '0.00'}%)
                             </div>
-                        </div>
-                    </div>
-                `;
-                container.innerHTML += html;
-            });
-        }
+                        </div>`;
+                });
 
-        fetchAllData();
-        setInterval(fetchAllData, 10000);
+                html += `</div></div>
+                    <div class="content-card">
+                        <h3>관심 종목</h3>
+                        <div id="watchlist-items">
+                            <div class="watchlist-controls">
+                                <button id="toggle-move-mode" class="mode-button ${watchlistMode === 'move' ? 'active' : ''}">
+                                    <i class="fas fa-arrows-alt-v"></i> 이동
+                                </button>
+                                <button id="toggle-delete-mode" class="mode-button ${watchlistMode === 'delete' ? 'active' : ''}">
+                                    <i class="fas fa-trash"></i> 지우기
+                                </button>
+                            </div>`;
+                
+                if (appData.watchlist.length === 0) {
+                    html += `<p style="text-align:center; color: #757575;">아래에서 관심 종목을 추가하세요.</p>`;
+                } else {
+                    appData.watchlist.forEach((code, index) => {
+                        const stock = prices[code] || { name: code, price: 0, change: 0, change_percent: 0 };
+                        const changeClass = stock.change >= 0 ? 'positive' : 'negative';
+                        const sign = stock.change >= 0 ? '+' : '';
+
+                        let rightSideControls = '';
+                        if (watchlistMode === 'move') {
+                            const upButtonClass = index === 0 ? 'hidden' : '';
+                            const downButtonClass = index === appData.watchlist.length - 1 ? 'hidden' : '';
+                            rightSideControls = `
+                                <div class="move-controls">
+                                    <button class="move-arrow-btn move-up ${upButtonClass}" data-code="${stock.code}"><i class="fas fa-arrow-up"></i></button>
+                                    <button class="move-arrow-btn move-down ${downButtonClass}" data-code="${stock.code}"><i class="fas fa-arrow-down"></i></button>
+                                </div>`;
+                        } else if (watchlistMode === 'delete') {
+                            const isChecked = selectedForDeletion.has(stock.code) ? 'checked' : '';
+                            rightSideControls = `<input type="checkbox" class="delete-checkbox" data-code="${stock.code}" ${isChecked}>`;
+                        }
+
+                        html += `
+                            <div class="watchlist-item" data-code="${stock.code}"> 
+                                <div class="stock-info">
+                                    <div class="name">${stock.name || code}</div>
+                                    <div class="code">${stock.code}</div>
+                                </div>
+                                <div class="stock-price">
+                                    <div class="price">${formatCurrency(stock.price)}</div>
+                                    <div class="change ${changeClass}">
+                                        ${sign}${formatCurrency(stock.change)} (${stock.change_percent.toFixed(2)}%)
+                                    </div>
+                                </div>
+                                ${rightSideControls}
+                            </div>`;
+                    });
+                }
+
+                if (watchlistMode === 'move') {
+                    html += `<div class="move-actions"><button id="done-move-btn" class="action-button primary">완료</button></div>`;
+                } else if (watchlistMode === 'delete') {
+                    html += `<div class="delete-actions"><button id="confirm-delete-btn" class="action-button primary">확인</button><button id="cancel-delete-btn" class="action-button secondary">취소</button></div>`;
+                }
+
+                html += `</div></div>
+                    <div class="content-card">
+                        <h3>관심 종목 추가</h3> 
+                        <div class="add-stock-form">
+                            <input type="text" id="stock-search-input" placeholder="종목명 또는 코드 검색 (예: 삼성전자, 금, AAPL)" autocomplete="off">
+                            <div id="search-results" class="search-results-dropdown"></div>
+                        </div>
+                    </div>`;
+                contentEl.innerHTML = html;
+            }
+
+            // 3. 가족 포트폴리오 화면
+            async function renderPortfolioStockTable(stocks, member, accountName, prices) {
+                const showActionCol = !(member === '장병찬' || accountName === '전체 보기');
+
+                let tableHtml = `
+                    <table class="portfolio-table">
+                        <thead>
+                            <tr>
+                                <th>종목명</th>
+                                <th class="align-right">보유량</th>
+                                <th class="align-right">평가액</th>
+                                ${showActionCol ? '<th class="actions"></th>' : ''}
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                if (stocks.length === 0) {
+                    const colspan = showActionCol ? 4 : 3;
+                    tableHtml += `<tr><td colspan="${colspan}" style="text-align:center; color: #999;">보유 종목이 없습니다.</td></tr>`;
+                } else {
+                    stocks.forEach(stock => {
+                        const stockData = prices[stock.code] || { price: 0 };
+                        const unitPrice = stockData.price || 0;
+                        const totalValue = unitPrice * stock.quantity;
+                        
+                        const quantityDisplay = (member === '장병찬' && accountName !== '전체 보기')
+                            ? `<input type="text" inputmode="decimal" class="quantity-input" value="${formatNumber(stock.quantity)}" data-member="${member}" data-account="${accountName}" data-code="${stock.code}" data-price="${unitPrice}">`
+                            : formatNumber(stock.quantity);
+
+                        const actionCell = showActionCol
+                            ? `<td class="actions"><button class="action-btn delete" data-member="${member}" data-account="${accountName}" data-code="${stock.code}"><i class="fas fa-trash"></i></button></td>`
+                            : '';
+
+                        tableHtml += `
+                            <tr>
+                                <td>${stock.name}<br><small style="color: #757575;">${stock.code}</small></td>
+                                <td class="align-right">${quantityDisplay}</td>
+                                <td class="align-right">${formatCurrency(totalValue)}</td>
+                                ${actionCell}
+                            </tr>`;
+                    });
+                }
+                tableHtml += `</tbody></table>`;
+                if (accountName !== '전체 보기' && member !== '장병찬') {
+                    tableHtml += `
+                        <div class="portfolio-actions">
+                            <button class="add-stock-btn" data-member="${member}" data-account="${accountName}"><i class="fas fa-plus"></i>종목 추가</button>
+                        </div>`;
+                }
+                return tableHtml;
+            }
+
+            async function renderPortfolio() {
+                const allPortfolioCodes = Object.values(appData.family_portfolio)
+                    .map(memberPortfolio => Object.values(memberPortfolio).flat())
+                    .flat()
+                    .map(stock => stock.code);
+
+                if (!allPortfolioCodes.includes('KRX_GOLD_1G')) {
+                    allPortfolioCodes.push('KRX_GOLD_1G');
+                }
+
+                const prices = await fetchStockData(allPortfolioCodes);
+
+                let html = '<div class="content-card"><h3>가족 포트폴리오</h3>';
+                const familyMembers = Object.keys(appData.family_portfolio);
+                
+                if (familyMembers.length === 0) {
+                    html += `<p style="text-align:center; color: #757575;">등록된 가족 구성원이 없습니다.</p>`;
+                } else {
+                    for (const member of familyMembers) {
+                        const memberAccounts = appData.family_portfolio[member];
+                        html += `
+                            <div class="portfolio-member">
+                                <div class="portfolio-member-header">
+                                    <span>${member}</span>
+                                    <i class="fas fa-chevron-down"></i>
+                                </div>
+                                <div class="portfolio-content">`;
+
+                        const allStocksRaw = Object.values(memberAccounts).flat();
+                        const aggregatedStocksObj = allStocksRaw.reduce((acc, stock) => {
+                            if (acc[stock.code]) {
+                                acc[stock.code].quantity += stock.quantity;
+                            } else {
+                                acc[stock.code] = { ...stock };
+                            }
+                            return acc;
+                        }, {});
+                        let allStocks = Object.values(aggregatedStocksObj);
+
+                        if (member === '장병찬') {
+                            const desiredOrder = ["458730.KS", "379810.KS", "490490.KS", "0048K0.KS", "KRX_GOLD_1G", "BTC-KRW"];
+                            allStocks.sort((a, b) => desiredOrder.indexOf(a.code) - desiredOrder.indexOf(b.code));
+                        }
+
+                        html += `
+                            <div class="portfolio-account">
+                                <div class="account-header" data-is-total="true">
+                                    <span>전체 보기</span>
+                                    <i class="fas fa-chevron-down"></i>
+                                </div>
+                                <div class="account-content">
+                                    ${await renderPortfolioStockTable(allStocks, member, '전체 보기', prices)}
+                                </div>
+                            </div>`;
+
+                        for (const accountName in memberAccounts) {
+                            html += `
+                                <div class="portfolio-account">
+                                    <div class="account-header">
+                                        <span>${accountName}</span>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                    <div class="account-content">
+                                        ${await renderPortfolioStockTable(memberAccounts[accountName], member, accountName, prices)}
+                                    </div>
+                                </div>`;
+                        }
+
+                        if (member !== '장병찬') {
+                            html += `
+                                <div class="portfolio-actions">
+                                    <button class="add-account-btn" data-member="${member}"><i class="fas fa-plus"></i>계좌 추가</button>
+                                </div>`;
+                        }
+                        html += '</div></div>';
+                    }
+                }
+                html += '</div>';
+                contentEl.innerHTML = html;
+            }
+
+            // 4. 투자현황 화면
+            async function renderStatus() {
+                const sortedStatus = [...appData.investment_status].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                let html = `
+                    <div class="content-card">
+                        <h3>월별 투자 현황</h3>
+                        <div class="status-table-container">
+                            <table class="status-table">
+                                <thead>
+                                    <tr><th>날짜</th><th>자산</th><th>수익률(%)</th><th>투자손익</th></tr>
+                                </thead>
+                                <tbody>`;
+                sortedStatus.forEach(s => {
+                    html += `
+                        <tr>
+                            <td>${s.date}</td>
+                            <td>${formatNumber(s.assets)}</td>
+                            <td class="${s.rate >= 0 ? 'positive' : 'negative'}">${s.rate.toFixed(2)}</td>
+                            <td class="${s.pnl >= 0 ? 'positive' : 'negative'}">${formatNumber(s.pnl)}</td>
+                        </tr>`;
+                });
+                html += `</tbody></table></div></div>
+                    <div class="content-card status-form-container">
+                        <h3>이번 달 현황 추가 (자동 계산)</h3>
+                        <p style="font-size: 0.9em; color: #757575; margin-bottom: 15px;">
+                            '장병찬' 님의 현재 포트폴리오를 기준으로 자산을 계산하여 오늘 날짜로 저장합니다.
+                        </p>
+                        <button id="add-status-btn">오늘 현황 저장하기</button>
+                    </div>`;
+                contentEl.innerHTML = html;
+            }
+
+            let watchlistMode = 'normal';
+            let selectedForDeletion = new Set();
+
+            // --- 이벤트 리스너 ---
+            const tabFunctions = {
+                home: renderHome,
+                watchlist: renderWatchlist,
+                portfolio: renderPortfolio,
+                status: renderStatus,
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    const tabName = this.dataset.tab; 
+
+                    sessionStorage.setItem('activeTab', tabName);
+
+                    showLoading();
+                    watchlistMode = 'normal';
+                    selectedForDeletion.clear();
+                    setTimeout(() => tabFunctions[tabName](), 100);
+                });
+            });
+
+            // 수량 입력 칸 포커스 시 전체 선택
+            contentEl.addEventListener('focusin', (e) => {
+                if (e.target.classList.contains('quantity-input')) {
+                    setTimeout(() => e.target.select(), 0);
+                }
+            });
+            
+            let searchTimeout = null;
+
+            contentEl.addEventListener('input', (e) => {
+                if (e.target.id === 'stock-search-input') {
+                    const searchInput = e.target;
+                    const searchResultsDiv = document.getElementById('search-results');
+                    if (!searchResultsDiv) return;
+
+                    clearTimeout(searchTimeout);
+                    const query = searchInput.value.trim();
+
+                    if (query.length < 1) {
+                        searchResultsDiv.classList.remove('show');
+                        return;
+                    }
+
+                    searchTimeout = setTimeout(async () => {
+                        const response = await fetch(`/api/search-stocks?query=${encodeURIComponent(query)}`);
+                        const results = await response.json();
+                        
+                        searchResultsDiv.innerHTML = '';
+                        if (results.length > 0) {
+                            results.forEach(stock => {
+                                const item = document.createElement('div');
+                                item.className = 'search-result-item';
+                                item.dataset.code = stock.code;
+                                item.innerHTML = `<div><div class="name">${stock.name || stock.code}</div><div class="code">${stock.code}</div></div><div class="price">${formatCurrency(stock.price)}</div>`;
+                                searchResultsDiv.appendChild(item);
+                            });
+                        } else {
+                            searchResultsDiv.innerHTML = '<div class="search-result-item" style="justify-content: center; color: #757575;">검색 결과 없음</div>';
+                        }
+                        searchResultsDiv.classList.add('show');
+                    }, 300);
+                }
+
+                // 수량 입력 시 실시간 포맷팅 (소수점 8자리 지원)
+                if (e.target.classList.contains('quantity-input')) {
+                    const input = e.target;
+                    let value = input.value.replace(/,/g, '');
+                    if (isNaN(value) || value === '') {
+                        input.value = value;
+                        return;
+                    }
+                    if (value.includes('.')) {
+                        const parts = value.split('.');
+                        const integerPart = Number(parts[0]).toLocaleString('ko-KR');
+                        const decimalPart = parts[1].slice(0, 8); // 소수점 최대 8자리 유지
+                        input.value = `${integerPart}.${decimalPart}`;
+                    } else {
+                        input.value = Number(value).toLocaleString('ko-KR');
+                    }
+                }
+            });
+
+            contentEl.addEventListener('change', (e) => {
+                if (e.target.classList.contains('quantity-input')) { 
+                    const input = e.target;
+                    const { member, account, code } = input.dataset;
+                    const newQuantity = parseFloat(input.value.replace(/,/g, ''));
+
+                    const stock = appData.family_portfolio[member][account].find(s => s.code === code);
+
+                    if (isNaN(newQuantity) || newQuantity < 0) {
+                        input.value = stock ? formatNumber(stock.quantity) : '0';
+                        alert('유효한 숫자를 입력하세요.');
+                        return;
+                    }
+
+                    if (stock) {
+                        stock.quantity = newQuantity;
+                        saveData();
+
+                        const price = parseFloat(input.dataset.price) || 0;
+                        const totalValue = price * newQuantity;
+                        const valueCell = input.closest('tr').querySelector('td:nth-child(3)');
+                        if (valueCell) valueCell.textContent = formatCurrency(totalValue);
+                    }
+                }
+
+                if (e.target.classList.contains('delete-checkbox')) {
+                    const code = e.target.dataset.code;
+                    if (e.target.checked) selectedForDeletion.add(code);
+                    else selectedForDeletion.delete(code);
+                }
+            });
+
+            contentEl.addEventListener('click', async (e) => { 
+                const header = e.target.closest('.portfolio-member-header');
+                const accountHeader = e.target.closest('.account-header');
+
+                if (header) {
+                    const content = header.nextElementSibling;
+                    const icon = header.querySelector('i');
+                    const isOpening = content.style.display !== 'block';
+                    content.style.display = isOpening ? 'block' : 'none';
+                    icon.classList.toggle('fa-chevron-down', !isOpening);
+                    icon.classList.toggle('fa-chevron-up', isOpening);
+                } else if (accountHeader) {
+                    const content = accountHeader.nextElementSibling;
+                    const icon = accountHeader.querySelector('i');
+                    const isOpening = content.style.display !== 'block';
+                    content.style.display = isOpening ? 'block' : 'none';
+                    icon.classList.toggle('fa-chevron-down', !isOpening);
+                    icon.classList.toggle('fa-chevron-up', isOpening);
+                }
+
+                if (e.target.id === 'toggle-move-mode' || e.target.closest('#toggle-move-mode')) {
+                    watchlistMode = (watchlistMode === 'move' ? 'normal' : 'move');
+                    selectedForDeletion.clear();
+                    renderWatchlist();
+                    return;
+                }
+                if (e.target.id === 'toggle-delete-mode' || e.target.closest('#toggle-delete-mode')) {
+                    watchlistMode = (watchlistMode === 'delete' ? 'normal' : 'delete');
+                    selectedForDeletion.clear();
+                    renderWatchlist();
+                    return;
+                }
+
+                const addAccountBtn = e.target.closest('.add-account-btn');
+                if (addAccountBtn) {
+                    const member = addAccountBtn.dataset.member;
+                    const newAccountName = prompt(`${member}님의 새 계좌 이름을 입력하세요:`);
+                    if (newAccountName && newAccountName.trim() !== '') {
+                        if (appData.family_portfolio[member][newAccountName]) {
+                            alert('이미 존재하는 계좌 이름입니다.');
+                        } else {
+                            appData.family_portfolio[member][newAccountName] = [];
+                            saveData();
+                            renderPortfolio();
+                        }
+                    }
+                }
+
+                const addStockBtn = e.target.closest('.add-stock-btn');
+                if (addStockBtn) {
+                    const { member, account } = addStockBtn.dataset;
+                    const code = prompt('추가할 종목의 코드를 입력하세요 (예: 005930.KS, KRX_GOLD_1G):');
+                    if (!code || code.trim() === '') return;
+
+                    const quantity = parseFloat(prompt('보유 수량을 입력하세요:', '1'));
+                    if (isNaN(quantity) || quantity <= 0) {
+                        alert('유효한 수량을 입력하세요.');
+                        return;
+                    }
+
+                    const stockCode = code.trim().toUpperCase();
+                    const prices = await fetchStockData([stockCode]);
+                    const stockData = prices[stockCode] || { name: stockCode, code: stockCode };
+
+                    appData.family_portfolio[member][account].push({
+                        name: stockData.name,
+                        code: stockData.code,
+                        quantity: quantity,
+                        dividend: 0
+                    });
+                    saveData();
+                    renderPortfolio();
+                }
+
+                const searchResultItem = e.target.closest('.search-result-item');
+                if (searchResultItem && searchResultItem.dataset.code) {
+                    const code = searchResultItem.dataset.code;
+                    if (appData.watchlist.includes(code)) {
+                        alert('이미 추가된 종목입니다.');
+                    } else {
+                        appData.watchlist.push(code);
+                        saveData();
+                    }
+                    const stockSearchInput = document.getElementById('stock-search-input');
+                    if (stockSearchInput) stockSearchInput.value = '';
+                    document.getElementById('search-results').classList.remove('show');
+                    renderWatchlist();
+                }
+
+                if (e.target.classList.contains('move-up') || e.target.closest('.move-up')) {
+                    const codeToMove = e.target.closest('.move-arrow-btn').dataset.code;
+                    const index = appData.watchlist.indexOf(codeToMove);
+                    if (index > 0) {
+                        const newWatchlist = [...appData.watchlist];
+                        [newWatchlist[index], newWatchlist[index - 1]] = [newWatchlist[index - 1], newWatchlist[index]];
+                        appData.watchlist = newWatchlist;
+                        saveData();
+                        renderWatchlist();
+                    }
+                    return;
+                }
+                if (e.target.classList.contains('move-down') || e.target.closest('.move-down')) {
+                    const codeToMove = e.target.closest('.move-arrow-btn').dataset.code;
+                    const index = appData.watchlist.indexOf(codeToMove);
+                    if (index < appData.watchlist.length - 1) {
+                        const newWatchlist = [...appData.watchlist];
+                        [newWatchlist[index], newWatchlist[index + 1]] = [newWatchlist[index + 1], newWatchlist[index]];
+                        appData.watchlist = newWatchlist;
+                        saveData();
+                        renderWatchlist();
+                    }
+                    return;
+                }
+                if (e.target.id === 'done-move-btn' || e.target.closest('#done-move-btn')) {
+                    watchlistMode = 'normal';
+                    renderWatchlist();
+                }
+
+                if (e.target.id === 'confirm-delete-btn' || e.target.closest('#confirm-delete-btn')) {
+                    if (selectedForDeletion.size > 0) {
+                        if (confirm(`${selectedForDeletion.size}개의 종목을 삭제하시겠습니까?`)) {
+                            appData.watchlist = appData.watchlist.filter(code => !selectedForDeletion.has(code));
+                            saveData();
+                            selectedForDeletion.clear();
+                            watchlistMode = 'normal';
+                            renderWatchlist();
+                        }
+                    } else {
+                        alert('삭제할 종목을 선택해주세요.');
+                    }
+                }
+                const deleteBtn = e.target.closest('.action-btn.delete');
+                if (deleteBtn) {
+                    const { member, account, code } = deleteBtn.dataset;
+                    if (confirm(`${member}님의 ${account} 계좌에서 ${code} 종목을 삭제하시겠습니까?`)) {
+                        const stocks = appData.family_portfolio[member][account];
+                        appData.family_portfolio[member][account] = stocks.filter(s => s.code !== code);
+                        saveData();
+                        renderPortfolio();
+                    }
+                }
+                if (e.target.id === 'cancel-delete-btn') {
+                    selectedForDeletion.clear();
+                    watchlistMode = 'normal';
+                    renderWatchlist();
+                }
+
+                if (e.target.id === 'add-status-btn') {
+                    let totalAssets = 0;
+                    const myPortfolio = appData.family_portfolio["장병찬"] || {};
+                    const allMyStockCodes = Object.values(myPortfolio).flat().map(s => s.code);
+                    
+                    if (!allMyStockCodes.includes('KRX_GOLD_1G')) {
+                        allMyStockCodes.push('KRX_GOLD_1G');
+                    }
+
+                    const prices = await fetchStockData(allMyStockCodes);
+
+                    totalAssets = Object.values(myPortfolio).flat().reduce((sum, stock) => {
+                        const price = prices[stock.code]?.price || 0;
+                        return sum + (price * stock.quantity);
+                    }, 0);
+
+                    const lastStatus = appData.investment_status.length > 0 ? [...appData.investment_status].sort((a, b) => new Date(b.date) - new Date(a.date))[0] : { assets: 0, pnl: 0 };
+                    const pnl = totalAssets - lastStatus.assets;
+                    const rate = lastStatus.assets > 0 ? (pnl / lastStatus.assets) * 100 : 0;
+
+                    const newStatus = {
+                        date: new Date().toISOString().split('T')[0],
+                        assets: Math.round(totalAssets),
+                        rate: rate,
+                        pnl: Math.round(pnl)
+                    };
+
+                    appData.investment_status.push(newStatus);
+                    saveData();
+                    alert('오늘의 투자 현황이 저장되었습니다.');
+                    renderStatus();
+                }
+            });
+
+            // --- 초기화 ---
+            function initialize() {
+                loadData();
+
+                let currentTab = sessionStorage.getItem('activeTab') || 'home';
+
+                tabs.forEach(tab => {
+                    if (tab.dataset.tab === currentTab) {
+                        tab.classList.add('active');
+                    } else {
+                        tab.classList.remove('active');
+                    }
+                });
+
+                sessionStorage.setItem('activeTab', currentTab);
+                tabFunctions[currentTab]();
+            }
+
+            initialize();
+        });
     </script>
 </body>
 </html>
