@@ -23,7 +23,7 @@ ACCESS_TOKEN = ""
 
 def get_access_token():
     """
-    한국투자증권 OAuth2.0 접근 토큰 발급 (상세 로그 출력 추가)
+    한국투자증권 OAuth2.0 접근 토큰 발급
     """
     global ACCESS_TOKEN
     if ACCESS_TOKEN:
@@ -40,7 +40,6 @@ def get_access_token():
     try:
         res = requests.post(url, headers=headers, json=body, timeout=5)
         print("--- [토큰 발급 응답 상태코드] ---:", res.status_code)
-        print("--- [토큰 발급 응답 본문] ---:", res.text)
         
         res_data = res.json()
         if "access_token" in res_data:
@@ -63,23 +62,27 @@ def get_kis_stock_price(code):
         print(f"[{code}] 토큰이 없어 시세 조회를 진행하지 못합니다.")
         return None
 
+    # 한국투자증권 공식 주식현재가 시세 URL
     url = f"{URL_BASE}/uapi/domestic-stock/v1/quoting/inquire-price"
+    
     headers = {
         "content-type": "application/json; charset=utf-8",
         "authorization": f"Bearer {token}",
         "appkey": APP_KEY,
         "appsecret": APP_SECRET,
-        "tr_id": "FHKST01010100"
+        "tr_id": "FHKST01010100",
+        "custtype": "P"  # 개인(P) 구분
     }
+    
+    # 한국투자증권 규격에 맞춘 대문자 쿼리 파라미터
     params = {
-        "fid_cond_mrkt_div_code": "J",
-        "fid_input_iscd": code
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": code
     }
 
     try:
         res = requests.get(url, headers=headers, params=params, timeout=5)
         print(f"--- [{code} 시세 응답 상태코드] ---:", res.status_code)
-        print(f"--- [{code} 시세 응답 본문] ---:", res.text)
         
         data = res.json()
         if data.get("rt_cd") == "0":
