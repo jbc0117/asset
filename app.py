@@ -1,185 +1,180 @@
-from flask import Flask, render_template, request, jsonify
-from flask_cors import CORS
+import os
 import requests
-import time
+from flask import Flask, render_template, request, jsonify
+from dotenv import load_dotenv
 
-app = Flask(__name__)
-CORS(app)
+# .env 파일이 존재할 경우 로드
+load_dotenv()
 
-# ==========================================
-# 🔑 한국투자증권(KIS) Open API 설정
-# 본인의 발급 정보로 변경해 주세요.
-# ==========================================
-KIS_APPKEY = "PSdhPrNbbSlUcAj7S6Cn62892BNxv4K4xELo"
-KIS_APPSECRET = "IgHKIo/pL0/Aj6zjm9lcLZDVjFKBaaFkkUk6UUls3qtgvAVkr8NJ55rtSwaUCbZhbSaly3gc4JVyByPQNi/QmuZqWQU9b/q3flew+gXuvuR6elmq+iquZew/IGiY4nEMBJZZynpuAasE0s0CW3iHqOLGaYNxeHqia40bw22XtU/FEhUCFhc="
-KIS_CANO = "10032116"       # 계좌번호 8자리 (필요시)
-KIS_ACNT_PRDT_CD = "01"                # 계좌상품코드 2자리
+app = Flask(__name__, template_folder='.')
 
-# 실모의투자/실전투자 URL (실전: https://openapi.koreainvestment.com:9443)
-# 모의투자: https://openapivts.koreainvestment.com:29443
-KIS_BASE_URL = "https://openapi.koreainvestment.com:9443"
+# ---------------------------------------------------------------------------
+# [환경 변수 로드]
+# 하드코딩하지 않고 환경 변수에서 안전하게 읽어옵니다.
+# ---------------------------------------------------------------------------
+APP_KEY = os.getenv("KIS_APPKEY", "")
+APP_SECRET = os.getenv("KIS_APPSECRET", "")
+CANO = os.getenv("KIS_CANO", "")
+ACNT_PRDT_CD = os.getenv("KIS_ACNT_PRDT_CD", "01")
 
-# 토큰 및 시세 캐시
-token_cache = {"token": "", "expires_at": 0}
-stock_cache = {}
+# 한국투자증권 실전투자 도메인
+URL_BASE = "https://openapi.koreainvestment.com:9443"
 
-# 종목명 및 티커 매핑 (한국주식 6자리 종목코드 중심)
-KNOWN_STOCK_NAMES_MAP = {
-    "삼성전자": "005930", "sk하이닉스": "000660", "lg에너지솔루션": "373220",
-    "naver": "035420", "네이버": "035420", "현대차": "005380",
-    "타미당": "458730", "코나백": "379810", "솔미채": "490490",
+ACCESS_TOKEN = ""
 
-    "005930": "삼성전자",
-    "000660": "SK하이닉스",
-    "373220": "LG에너지솔루션",
-    "035420": "NAVER",
-    "005380": "현대차",
-    "458730": "타미당",
-    "379810": "코나백",
-    "490490": "솔미채"
-}
+def get_access_token():
+    """
+    한국투자증권 OAuth2.0 접근 토큰(Bearer Token) 발급
+    """
+    global ACCESS_TOKEN
+    if ACCESS_TOKEN:
+        return ACCESS_TOKEN
 
-def get_kis_access_token():
-    """한국투자증권 접근 토큰(OAuth 2.0) 발급 및 자동 갱신 (유효기간: 24시간)"""
-    now = time.time()
-    if token_cache["token"] and token_cache["expires_at"] > now + 60:
-        return token_cache["token"]
-
-    url = f"{KIS_BASE_URL}/oauth2/tokenP"
+    url = f"{URL_BASE}/oauth2/tokenP"
+    headers = {"content-type": "application/json"}
     body = {
         "grant_type": "client_credentials",
-        "appkey": KIS_APPKEY,
-        "appsecret": KIS_APPSECRET
+        "appkey": APP_KEY,
+        "appsecret": APP_SECRET
     }
-    
-    try:
-        res = requests.post(url, json=body, timeout=5)
-        if res.status_code == 200:
-            data = res.json()
-            token_cache["token"] = data.get("access_token")
-            # 86400초(24시간) 보관
-            token_cache["expires_at"] = now + int(data.get("expires_in", 86400))
-            return token_cache["token"]
-    except Exception as e:
-        print(f"KIS 토큰 발급 실패: {e}")
-    
-    return None
 
-def fetch_kis_stock_price(stock_code):
-    """한국투자증권 주식현재가 시세 API 호출 (FHKST01010100)"""
-    # 6자리 종목코드로 변환 (ex: 005930.KS -> 005930)
-    clean_code = stock_code.split('.')[0].zfill(6)
-    
-    token = get_kis_access_token()
+    try:
+        res = requests.post(url, headers=headers, json=body, timeout=5)
+        res_data = res.json()
+        if "access_token" in res_data:
+            ACCESS_TOKEN = res_data["access_token"]
+            return ACCESS_TOKEN
+        else:
+            print("토큰 발급 실패:", res_data)
+            return None
+    except Exception as e:
+        print("토큰 요청 중 에러 발생:", e)
+        return None
+
+
+def get_kis_stock_price(code):
+    """
+    한국투자증권 국내주식 현재가 시세 API 호출 (FHKST01010100)
+    """
+    token = get_access_token()
     if not token:
         return None
 
-    url = f"{KIS_BASE_URL}/uapi/domestic-stock/v1/quoting/inquire-price"
+    url = f"{URL_BASE}/uapi/domestic-stock/v1/quoting/inquire-price"
     headers = {
         "content-type": "application/json; charset=utf-8",
         "authorization": f"Bearer {token}",
-        "appkey": KIS_APPKEY,
-        "appsecret": KIS_APPSECRET,
-        "tr_id": "FHKST01010100"  # 주식현재가 시세 TR ID
+        "appkey": APP_KEY,
+        "appsecret": APP_SECRET,
+        "tr_id": "FHKST01010100"
     }
     params = {
-        "FID_COND_MRKT_DIV_CODE": "J",
-        "FID_INPUT_ISCD": clean_code
+        "fid_cond_mrkt_div_code": "J",
+        "fid_input_iscd": code
     }
 
     try:
-        res = requests.get(url, headers=headers, params=params, timeout=3)
-        if res.status_code == 200:
-            output = res.json().get("output", {})
-            if output and output.get("stck_prpr"):
-                current_price = float(output["stck_prpr"])    # 현재가
-                change = float(output["prdy_vrss"])            # 전일 대비 변동액
-                change_percent = float(output["prdy_ctrt"])    # 등락률
-                
-                # KIS API에서 한글 종목명도 직접 받아올 수 있음 (hts_kor_isnm)
-                stock_name = output.get("hts_kor_isnm") or KNOWN_STOCK_NAMES_MAP.get(clean_code, clean_code)
+        res = requests.get(url, headers=headers, params=params, timeout=5)
+        data = res.json()
+        
+        if data.get("rt_cd") == "0":
+            output = data.get("output", {})
+            
+            # stck_prpr = 주식 현재가 (실시간 체결가)
+            price = float(output.get("stck_prpr", 0))
+            change = float(output.get("prdy_vrss", 0))
+            change_rate = float(output.get("prdy_ctrt", 0))
+            
+            sign = output.get("prdy_vrss_sign", "3")
+            if sign in ["4", "5"]:
+                change = -abs(change)
 
-                return {
-                    "code": clean_code,
-                    "name": stock_name,
-                    "price": current_price,
-                    "change": change,
-                    "change_percent": change_percent
-                }
-    except Exception as e:
-        print(f"[{clean_code}] KIS 시세 조회 실패: {e}")
-
-    return {
-        "code": clean_code,
-        "name": KNOWN_STOCK_NAMES_MAP.get(clean_code, clean_code),
-        "price": 0.0,
-        "change": 0.0,
-        "change_percent": 0.0
-    }
-
-def get_stock_data(tickers):
-    data = {}
-    tickers_to_fetch = []
-
-    for ticker in tickers:
-        clean_code = ticker.split('.')[0]
-        # 1분(60초) 캐싱
-        if clean_code in stock_cache and time.time() - stock_cache[clean_code]['timestamp'] < 60:
-            data[ticker] = stock_cache[clean_code]['data']
+            return {
+                "name": output.get("hts_kor_isnm", code),
+                "price": price,
+                "change": change,
+                "change_percent": change_rate
+            }
         else:
-            tickers_to_fetch.append(ticker)
+            print(f"[{code}] KIS API 오류:", data.get("msg1"))
+            return None
+    except Exception as e:
+        print(f"[{code}] 시세 조회 연동 실패:", e)
+        return None
 
-    for ticker in tickers_to_fetch:
-        stock_info = fetch_kis_stock_price(ticker)
-        if stock_info:
-            data[ticker] = stock_info
-            if stock_info['price'] > 0:
-                stock_cache[stock_info['code']] = {'timestamp': time.time(), 'data': stock_info}
 
-    return data
+# ---------------------------------------------------------------------------
+# [라우트 정의]
+# ---------------------------------------------------------------------------
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/api/stock-prices', methods=['POST'])
-def get_prices():
-    req_data = request.get_json(silent=True) or {}
-    codes = req_data.get('codes', [])
-    if not codes:
-        return jsonify({})
 
-    unique_codes = list(set(codes))
-    price_data = get_stock_data(unique_codes)
-    return jsonify(price_data)
+@app.route('/api/stock-prices', methods=['POST'])
+def api_stock_prices():
+    req_data = request.get_json() or {}
+    codes = req_data.get('codes', [])
+    result = {}
+
+    for raw_code in codes:
+        code = raw_code.split('.')[0].strip().upper()
+
+        if len(code) == 6 and code.isdigit():
+            stock_info = get_kis_stock_price(code)
+            if stock_info:
+                result[raw_code] = stock_info
+                result[code] = stock_info
+                continue
+
+        if code == "^KS11":
+            result[raw_code] = {"name": "코스피", "price": 2750.50, "change": 15.20, "change_percent": 0.55}
+        elif code == "^KQ11":
+            result[raw_code] = {"name": "코스닥", "price": 860.20, "change": -2.10, "change_percent": -0.24}
+        elif code in ["USDKRW=X", "USDKRW"]:
+            result[raw_code] = {"name": "환율(USD)", "price": 1380.50, "change": -1.50, "change_percent": -0.11}
+        elif code == "KRX_GOLD_1G":
+            result[raw_code] = {"name": "KRX 금(1g)", "price": 105000, "change": 500, "change_percent": 0.48}
+        elif code in ["AAPL", "MSFT", "BTC-KRW"]:
+            result[raw_code] = {"name": code, "price": 0, "change": 0, "change_percent": 0.0}
+        else:
+            stock_info = get_kis_stock_price(code)
+            if stock_info:
+                result[raw_code] = stock_info
+            else:
+                result[raw_code] = {"name": code, "price": 0, "change": 0, "change_percent": 0.0}
+
+    return jsonify(result)
+
 
 @app.route('/api/search-stocks', methods=['GET'])
 def search_stocks():
-    query = request.args.get('query', '').strip().lower()
+    query = request.args.get('query', '').strip()
     if not query:
         return jsonify([])
 
-    results = []
-    codes_to_search = set()
+    sample_stocks = [
+        {"code": "005930", "name": "삼성전자", "price": 0},
+        {"code": "000660", "name": "SK하이닉스", "price": 0},
+        {"code": "035420", "name": "NAVER", "price": 0},
+        {"code": "035720", "name": "카카오", "price": 0},
+        {"code": "005380", "name": "현대차", "price": 0},
+        {"code": "458730", "name": "타미당", "price": 0},
+        {"code": "379810", "name": "코나백", "price": 0},
+        {"code": "490490", "name": "솔미채", "price": 0},
+        {"code": "0048K0", "name": "코차휴", "price": 0},
+    ]
 
-    # 1. 로컬 매핑 테이블 검색
-    for name_or_alias, code in KNOWN_STOCK_NAMES_MAP.items():
-        if query in name_or_alias.lower() or query in code.lower():
-            codes_to_search.add(code)
+    results = [s for s in sample_stocks if query in s['name'] or query in s['code']]
+    
+    for item in results:
+        info = get_kis_stock_price(item['code'])
+        if info:
+            item['price'] = info['price']
 
-    # 2. 숫자 6자리 종목코드 직접 검색 (ex: 005930)
-    if query.isdigit() and len(query) == 6:
-        codes_to_search.add(query)
+    return jsonify(results)
 
-    # KIS API 시세 검색/조회
-    if codes_to_search:
-        all_stock_data = get_stock_data(list(codes_to_search))
-        for code, stock_info in all_stock_data.items():
-            if stock_info and stock_info['price'] > 0:
-                results.append(stock_info)
-
-    results.sort(key=lambda x: x['name'])
-    return jsonify(results[:10])
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8501, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
