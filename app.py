@@ -16,8 +16,8 @@ APP_SECRET = os.getenv("KIS_APPSECRET", "").strip()
 CANO = os.getenv("KIS_CANO", "").strip()
 ACNT_PRDT_CD = os.getenv("KIS_ACNT_PRDT_CD", "01").strip()
 
-# 한국투자증권 실전투자 Domain
-URL_BASE = "https://openapi.koreainvestment.com:9443"
+# 한국투자증권 표준 실전 Domain (포트 9443 없이 접속)
+URL_BASE = "https://openapi.koreainvestment.com"
 
 ACCESS_TOKEN = ""
 
@@ -62,7 +62,6 @@ def get_kis_stock_price(code):
         print(f"[{code}] 토큰이 없어 시세 조회를 진행하지 못합니다.")
         return None
 
-    # 한국투자증권 국내주식현재가 시세 API 공식 엔드포인트
     url = f"{URL_BASE}/uapi/domestic-stock/v1/quoting/inquire-price"
     
     headers = {
@@ -73,7 +72,6 @@ def get_kis_stock_price(code):
         "tr_id": "FHKST01010100"
     }
     
-    # KIS API 대문자 조건 파라미터
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": str(code)
