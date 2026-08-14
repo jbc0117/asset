@@ -63,10 +63,12 @@
 <body>
 
     <div class="main-container">
-        <!-- 주요 지수 섹션 -->
+        <!-- 주요 지수 섹션 (기본 틀 복구) -->
         <div class="card p-3">
             <h5 class="mb-3 fw-bold">주요 지수</h5>
-            <div class="row g-2" id="market-indices"></div>
+            <div class="row g-2" id="market-indices">
+                <!-- 자바스크립트로 동적 로드 -->
+            </div>
         </div>
 
         <!-- 관심 종목 섹션 -->
@@ -78,7 +80,9 @@
                     <button class="btn btn-sm btn-outline-secondary" id="btn-delete"><i class="fa-solid fa-trash"></i> 지우기</button>
                 </div>
             </div>
-            <div id="watchlist-container"></div>
+            <div id="watchlist-container">
+                <!-- 관심 종목 리스트 -->
+            </div>
         </div>
     </div>
 
@@ -92,19 +96,60 @@
 
     <script>
         let watchlistCodes = ["005930", "000660", "035420"];
+        let marketCodes = ["^KS11", "^KQ11", "KRW=X", "KRX_GOLD_1G"];
 
-        async function fetchStockPrices() {
+        async function fetchAllData() {
             try {
-                const response = await fetch('/api/stock-prices', {
+                // 1. 관심 종목 시세 조회
+                const resWatch = await fetch('/api/stock-prices', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ codes: watchlistCodes })
                 });
-                const data = await response.json();
-                renderWatchlist(data);
+                const watchData = await resWatch.json();
+                renderWatchlist(watchData);
+
+                // 2. 주요 지수 시세 조회
+                const resMarket = await fetch('/api/stock-prices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ codes: marketCodes })
+                });
+                const marketData = await resMarket.json();
+                renderMarketIndices(marketData);
+
             } catch (error) {
-                console.error("주식 시세 조회 실패:", error);
+                console.error("데이터 조회 실패:", error);
             }
+        }
+
+        function renderMarketIndices(stockData) {
+            const container = document.getElementById('market-indices');
+            container.innerHTML = '';
+
+            marketCodes.forEach(code => {
+                const stock = stockData[code];
+                if (!stock) return;
+
+                const isPlus = stock.change >= 0;
+                const changeColor = isPlus ? 'text-red' : 'text-blue';
+                const signSymbol = isPlus ? '+' : '';
+
+                let priceStr = stock.price.toLocaleString();
+                if (code === "KRW=X") priceStr += "원";
+                else if (code === "KRX_GOLD_1G") priceStr += "원";
+
+                const html = `
+                    <div class="col-6">
+                        <div class="p-2 border rounded bg-light text-center">
+                            <div class="text-muted small">${stock.name}</div>
+                            <div class="fw-bold">${priceStr}</div>
+                            <div class="${changeColor} small">${signSymbol}${stock.change.toLocaleString()} (${signSymbol}${stock.change_percent.toFixed(2)}%)</div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
         }
 
         function renderWatchlist(stockData) {
@@ -122,7 +167,6 @@
                 const html = `
                     <div class="stock-item">
                         <div>
-                            <!-- 큰 글씨로 한글 이름 표시 -->
                             <div class="fw-bold fs-5">${stock.name}</div>
                             <div class="text-muted small">${stock.code}</div>
                         </div>
@@ -138,8 +182,8 @@
             });
         }
 
-        fetchStockPrices();
-        setInterval(fetchStockPrices, 10000);
+        fetchAllData();
+        setInterval(fetchAllData, 10000);
     </script>
 </body>
 </html>
