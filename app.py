@@ -80,7 +80,7 @@ def get_kis_stock_price(code):
         if data.get("rt_cd") == "0":
             output = data.get("output", {})
             
-            # stck_prpr = 주식 현재가 (정수 변환)
+            # stck_prpr = 주식 현재가
             price = int(output.get("stck_prpr", 0))
             change = int(output.get("prdy_vrss", 0))          # 전일 대비
             change_rate = float(output.get("prdy_ctrt", 0))  # 전일 대비율 (%)
@@ -128,8 +128,9 @@ def api_stock_prices():
         if len(clean_code) == 6 and clean_code.isdigit():
             stock_info = get_kis_stock_price(clean_code)
             if stock_info:
-                # 프론트엔드가 요청한 키값(raw_code) 그대로 결과 매핑
+                # 프론트엔드가 '005930.KS'로 찾든 '005930'으로 찾든 둘 다 지원
                 result[raw_code] = stock_info
+                result[clean_code] = stock_info
                 continue
 
         # 3. 기타 지수 및 예시 항목 처리
@@ -173,5 +174,4 @@ def search_stocks():
 
 
 if __name__ == '__main__':
-    # 오라클 서버 방화벽에 열려있는 8501 포트로 설정
     app.run(host='0.0.0.0', port=8501, debug=True)
