@@ -1,5 +1,6 @@
 import os
 import time
+import sqlite3
 import requests
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -19,6 +20,35 @@ URL_BASE = "https://openapi.koreainvestment.com:9443"
 ACCESS_TOKEN = ""
 
 stock_cache = {}
+
+# --- 데이터베이스(SQLite) 초기화 ---
+def init_db():
+    conn = sqlite3.connect('family_portfolio.db')
+    cursor = conn.cursor()
+    # 관심종목 테이블
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS watchlist (
+            user_id TEXT,
+            ticker TEXT
+        )
+    ''')
+    # 포트폴리오 테이블
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS portfolio (
+            user_id TEXT,
+            member TEXT,
+            account TEXT,
+            name TEXT,
+            ticker TEXT,
+            quantity REAL,
+            dividend REAL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
 
 KNOWN_STOCK_NAMES_MAP = {
     "코스피": "^KS11", "코스피 지수": "^KS11", "kospi": "^KS11",
@@ -47,6 +77,7 @@ KNOWN_STOCK_NAMES_MAP = {
     "458730": "타미당", "458730.KS": "타미당",
     "379810": "코나백", "379810.KS": "코나백",
     "490490": "솔미채", "490490.KS": "솔미채",
+    "0048K0": "코차휴", "0048K0.KS": "코차휴",
     "BTC-KRW": "비트코인",
     "TSLA": "Tesla",
     "NVDA": "NVIDIA",
@@ -85,7 +116,7 @@ def fetch_from_kis_api(ticker_code):
     if not token:
         return None
 
-    clean_code = ticker_code.split('.')[0].strip().zfill(6)
+    clean_code = ticker_code.split('.')[0].strip()
     default_name = KNOWN_STOCK_NAMES_MAP.get(clean_code, KNOWN_STOCK_NAMES_MAP.get(ticker_code, ticker_code))
 
     url = f"{URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-price"
@@ -181,37 +212,82 @@ def fetch_from_kis_index_api(ticker_code):
     return None
 
 def fetch_gold_1g_krx():
-    """네이버 금융을 통해 실제 KRX 금 1g 현재가를 정확하게 가져옴"""
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    
-    try:
-        naver_gold_url = "https://m.stock.naver.com/front-api/marketIndex/productDetail?category=gold"
-        res = requests.get(naver_gold_url, headers=headers, timeout=3.0)
-        if res.status_code == 200:
-            data = res.json()
-            result_data = data.get('result', {})
-            if result_data:
-                current_price = float(result_data.get('closePrice', 198350))
-                change = float(result_data.get('fluctuationPrice', 0))
-                change_percent = float(result_data.get('fluctuationRate', 0))
-                
-                return {
-                    "code": "KRX_GOLD_1G",
-                    "name": "KRX 금 1g (실물)",
-                    "price": round(current_price, 0),
-                    "change": round(change, 0),
-                    "change_percent": round(change_percent, 2)
-                }
-    except Exception as e:
-        print(f"네이버 금 시세 조회 실패, 기본값 적용: {e}")
+    token = get_access_token()
+    if token:
+        url = f"{URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-price"
+        headers = {
+            "content-type": "application/json; charset=utf-8",
+            "authorization": f"Bearer {token}",
+            "appkey": APP_KEY,
+            "appsecret": APP_SECRET,
+            "tr_id": "FHKST01010100",
+            "custtype": "P"
+        }
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": "M04020000"
+        }
+
+        try:
+            res = requests.get(url, headers=headers, params=params, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("rt_cd") == "0":
+                    output = data.get("output", {})
+                    if output:
+                        price = float(output.get("stck_prpr", 0))
+                        change = float(output.get("prdy_vrss", 0))
+                        change_rate = float(output.get("prdy_ctrt", 0))
+                        
+                        sign = output.get("prdy_vrss_sign", "3")
+                        if sign in ["4", "5"]:
+                            change = -abs(change)
+
+                        return {
+                            "code": "KRX_GOLD_1G",
+                            "name": "KRX 금 1g (실물)",
+                            "price": round(price, 0),
+                            "change": round(change, 0),
+                            "change_percent": round(change_rate, 2)
+                        }
+        except Exception as e:
+            print(f"[KRX_GOLD_1G] KIS 금현물 API 조회 실패: {e}")
 
     return {
         "code": "KRX_GOLD_1G", 
         "name": "KRX 금 1g (실물)", 
         "price": 198350.0, 
-        "change": -2220.0, 
-        "change_percent": -1.11
+        "change": 0.0, 
+        "change_percent": 0.0
     }
+
+# 업비트 API를 통해 비트코인 시세를 가져오는 함수
+def fetch_from_upbit_api(ticker_code):
+    market = "KRW-BTC" if ticker_code == "BTC-KRW" else ticker_code
+    url = f"https://api.upbit.com/v1/ticker?markets={market}"
+    headers = {"accept": "application/json"}
+
+    try:
+        res = requests.get(url, headers=headers, timeout=3.0)
+        if res.status_code == 200:
+            data = res.json()
+            if data and isinstance(data, list):
+                item = data[0]
+                current_price = float(item.get("trade_price", 0))
+                change_price = float(item.get("signed_change_price", 0))
+                change_rate = float(item.get("signed_change_rate", 0)) * 100
+
+                return {
+                    "code": ticker_code,
+                    "name": "비트코인",
+                    "price": round(current_price, 2),
+                    "change": round(change_price, 2),
+                    "change_percent": round(change_rate, 2)
+                }
+    except Exception as e:
+        print(f"[{ticker_code}] 업비트 API 조회 실패: {e}")
+
+    return None
 
 def fetch_from_yahoo_chart_api(ticker_code):
     if ticker_code == "KRX_GOLD_1G":
@@ -276,10 +352,12 @@ def get_stock_data(tickers):
             stock_info = fetch_from_kis_index_api(ticker)
         elif ticker == "KRX_GOLD_1G":
             stock_info = fetch_gold_1g_krx()
+        elif ticker == "BTC-KRW":
+            stock_info = fetch_from_upbit_api(ticker)
 
         if not stock_info or stock_info['price'] == 0:
             clean_code = ticker.split('.')[0].strip()
-            if len(clean_code) == 6 and clean_code.isdigit():
+            if len(clean_code) == 6:
                 stock_info = fetch_from_kis_api(clean_code)
 
         if not stock_info or stock_info['price'] == 0:
@@ -308,7 +386,7 @@ def get_prices():
     price_data = get_stock_data(unique_codes)
     return jsonify(price_data)
 
-@app.route('/api/search-stocks', methods=['GET'])
+@app.route('/api/search-stock', methods=['GET'])
 def search_stocks():
     query = request.args.get('query', '').strip().lower()
     if not query:
@@ -321,7 +399,7 @@ def search_stocks():
         if query in name_or_alias.lower() or query in code.lower():
             codes_to_search.add(code)
 
-    if query.isdigit() and len(query) == 6:
+    if len(query) == 6:
         codes_to_search.add(query)
 
     if codes_to_search:
@@ -332,6 +410,69 @@ def search_stocks():
 
     results.sort(key=lambda x: x['name'])
     return jsonify(results[:10])
+
+
+# --- DB 연동 API (기기 간 동기화 핵심) ---
+
+@app.route('/api/load-data/<user_id>', methods=['GET'])
+def load_user_data(user_id):
+    conn = sqlite3.connect('family_portfolio.db')
+    cursor = conn.cursor()
+    
+    # 1. 관심종목 불러오기
+    cursor.execute('SELECT ticker FROM watchlist WHERE user_id = ?', (user_id,))
+    watchlist = [row[0] for row in cursor.fetchall()]
+    
+    # 2. 포트폴리오 불러오기
+    cursor.execute('SELECT member, account, name, ticker, quantity, dividend FROM portfolio WHERE user_id = ?', (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    family_portfolio = {}
+    for member, account, name, ticker, quantity, dividend in rows:
+        if member not in family_portfolio:
+            family_portfolio[member] = {}
+        if account not in family_portfolio[member]:
+            family_portfolio[member][account] = []
+        family_portfolio[member][account].append({
+            "name": name,
+            "code": ticker,
+            "quantity": quantity,
+            "dividend": dividend
+        })
+        
+    return jsonify({
+        "watchlist": watchlist,
+        "family_portfolio": family_portfolio
+    })
+
+@app.route('/api/save-data/<user_id>', methods=['POST'])
+def save_user_data(user_id):
+    req_data = request.get_json(silent=True) or {}
+    watchlist = req_data.get('watchlist', [])
+    family_portfolio = req_data.get('family_portfolio', {})
+    
+    conn = sqlite3.connect('family_portfolio.db')
+    cursor = conn.cursor()
+    
+    # 기존 데이터 삭제 후 새로 삽입 (덮어쓰기 동기화)
+    cursor.execute('DELETE FROM watchlist WHERE user_id = ?', (user_id,))
+    for ticker in watchlist:
+        cursor.execute('INSERT INTO watchlist (user_id, ticker) VALUES (?, ?)', (user_id, ticker))
+        
+    cursor.execute('DELETE FROM portfolio WHERE user_id = ?', (user_id,))
+    for member, accounts in family_portfolio.items():
+        for account, stocks in accounts.items():
+            for stock in stocks:
+                cursor.execute('''
+                    INSERT INTO portfolio (user_id, member, account, name, ticker, quantity, dividend)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (user_id, member, account, stock.get('name'), stock.get('code'), stock.get('quantity', 0), stock.get('dividend', 0)))
+                
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "success"})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8501, debug=True)
